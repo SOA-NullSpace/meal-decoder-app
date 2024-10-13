@@ -1,0 +1,85 @@
+# frozen_string_literal: true
+
+require 'net/http'
+require 'uri'
+require 'json'
+require 'yaml'
+require 'base64'
+
+module MealDecoder
+  # GoogleVisionAPI class to interact with Google Vision API for text detection
+  class GoogleVisionAPI
+    BASE_URL = 'https://vision.googleapis.com/v1/images:annotate'
+
+    module Errors
+      class Unauthorized < StandardError; end
+      class NotFound < StandardError; end
+    end
+
+    def initialize
+      @api_key = load_api_key
+    end
+
+    def detect_text(image_path)
+      raise Errno::ENOENT, "File not found: #{image_path}" unless File.exist?(image_path)
+
+      response = send_request(image_path)
+      handle_response(response)
+    end
+
+    private
+
+    def load_api_key
+      secrets = YAML.safe_load(File.read(File.join(__dir__, '..', 'config', 'secrets.yml')))
+      secrets['GOOGLE_CLOUD_API_TOKEN']
+    end
+
+    def send_request(image_path)
+      uri = URI.parse("#{BASE_URL}?key=#{@api_key}")
+      request = Net::HTTP::Post.new(uri)
+      request.content_type = 'application/json'
+      request.body = request_body(image_path)
+
+      Net::HTTP.start(uri.hostname, uri.port, use_ssl: true) do |http|
+        http.request(request)
+      end
+    end
+
+    def request_body(image_path)
+      JSON.dump(
+        requests: [{
+          image: {
+            content: Base64.strict_encode64(File.read(image_path))
+          },
+          features: [{
+            type: 'TEXT_DETECTION'
+          }]
+        }]
+      )
+    end
+
+    def handle_response(response)
+      case response
+      when Net::HTTPSuccess
+        parse_response(response.body)
+      when Net::HTTPUnauthorized
+        raise Errors::Unauthorized, 'Unauthorized access. Check your API key.'
+      when Net::HTTPNotFound
+        raise Errors::NotFound, 'Resource not found.'
+      else
+        raise "API request failed with status code: #{response.code}"
+      end
+    end
+
+    def parse_response(response_body)
+      json_response = JSON.parse(response_body)
+      text_annotations = json_response.dig('responses', 0, 'textAnnotations')
+
+      if text_annotations && !text_annotations.empty?
+        text_annotations[0]['description'].strip
+      else
+        ''
+      end
+    end
+  end
+end
