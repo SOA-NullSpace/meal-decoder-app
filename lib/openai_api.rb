@@ -3,12 +3,15 @@
 require 'http'
 require 'yaml'
 require 'delegate'
-require 'json' 
+require 'json'
 
 module MealDecoder
   module Service
     class IngredientFetcher
       API_URL = 'https://api.openai.com/v1/chat/completions'
+
+      class NotFound < StandardError; end
+      class Unauthorized < StandardError; end
 
       def initialize(api_key)
         @api_key = api_key
@@ -21,7 +24,6 @@ module MealDecoder
 
       private
 
-      # Handles the API request to OpenAI
       class Request
         def initialize(api_url, api_key)
           @api_url = api_url
@@ -29,23 +31,18 @@ module MealDecoder
         end
 
         def post_request(dish_name)
-          http_response = HTTP.headers(
+          response = HTTP.headers(
             'Content-Type' => 'application/json',
             'Authorization' => "Bearer #{@api_key}"
           ).post(@api_url, json: request_body(dish_name))
-
-          Response.new(http_response).tap do |response|
-            raise(response.error_message) unless response.successful?
-          end
+          Response.new(response)
         end
-
-        private
 
         def request_body(dish_name)
           {
             model: 'gpt-4o',
             messages: [
-              { role: 'system', content: 'You are a helpful assistant. Please list the ingredients of a dish.' },
+              { role: 'system', content: 'You are a helpful assistant. List the ingredients of a dish.' },
               { role: 'user', content: "What are the ingredients in #{dish_name}?" }
             ]
           }
@@ -53,29 +50,41 @@ module MealDecoder
       end
 
       class Response < SimpleDelegator
-        Unauthorized = Class.new(StandardError)
-        NotFound = Class.new(StandardError)
-        GenericError = Class.new(StandardError)
-
-        HTTP_ERROR = {
-          401 => Unauthorized,
-          404 => NotFound
-        }.freeze
-
-        def successful?
-          HTTP_ERROR.keys.none?(code)
-        end
-
-        def error_message
-          error = HTTP_ERROR[code] || GenericError
-          "#{error}: #{self['message'] || body.to_s}"
+        def validate!
+          body = JSON.parse(self.body.to_s)
+          if body['error']
+            raise NotFound, "Dish not found." if body['error']['message'].include?("not found")
+            raise Unauthorized, "Invalid API key provided." if body['error']['message'].include?("Invalid API key")
+          elsif body['choices'].empty? || body['choices'].first['message']['content'].include?("I'm not sure")
+            raise NotFound, "The provided name does not correspond to a known dish."
+          end
+          body
         end
       end
 
       def parse_response(response)
-        parsed_body = JSON.parse(response.body.to_s)
-        parsed_body['choices'].first['message']['content'].strip
+        body = response.validate!
+        ingredients_text = body['choices'].first['message']['content'].strip
+
+        uncertainty_phrases = [
+          "I'm not sure",
+          "I'm sorry, but",
+          "It seems that there might be",
+          "does not appear to be",
+          "could you clarify",
+          "not familiar with a dish",
+          "not widely recognized", "typo in your request", "doesn’t refer to a specific dish"
+        ]
+
+        if ingredients_text.empty? ||
+           ingredients_text.split(' ').length < 80 ||
+           uncertainty_phrases.any? { |phrase| ingredients_text.include?(phrase) }
+          raise Service::IngredientFetcher::NotFound, "The provided name does not correspond to a known dish or the description is too vague."
+        end
+
+        ingredients_text
       end
+
     end
   end
 end

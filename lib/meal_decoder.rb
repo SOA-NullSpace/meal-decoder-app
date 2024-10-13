@@ -15,15 +15,31 @@ module MealDecoder
   end
 
   def self.run(dish_name)
-    ingredients = ingredient_service.fetch_ingredients(dish_name)
-    Utils.save_ingredients_to_yaml(dish_name, ingredients)
-  rescue StandardError => e
-    puts "Error fetching ingredients: #{e.message}"
+    loop do
+      begin
+        ingredients = ingredient_service.fetch_ingredients(dish_name)
+        if ingredients.strip.empty?
+          puts "No ingredients found for the dish: #{dish_name}. Please try another dish:"
+        else
+          Utils.save_ingredients_to_yaml(dish_name, ingredients)
+          puts "Ingredients saved successfully."
+          break
+        end
+      rescue Service::IngredientFetcher::NotFound => e
+        puts "Error: #{e.message}"
+        break
+      rescue Service::IngredientFetcher::Unauthorized, StandardError => e
+        puts "Error: #{e.message}"
+        break
+      end
+    end
   end
 end
 
 module Utils
   def self.save_ingredients_to_yaml(dish_name, ingredients)
+    return if ingredients.strip.empty?
+
     output_path = File.join(File.dirname(File.expand_path(__dir__)), 'spec', 'fixtures',
                             "#{dish_name.downcase.gsub(' ', '_')}_ingredients.yml")
     File.open(output_path, 'w') { |file| file.write({ dish_name => ingredients }.to_yaml) }
@@ -31,6 +47,5 @@ module Utils
 end
 
 if __FILE__ == $0
-  dish_name = ARGV[0] || '蔥油餅'
-  MealDecoder.run(dish_name)
+  MealDecoder.run("Deligent dragon")
 end

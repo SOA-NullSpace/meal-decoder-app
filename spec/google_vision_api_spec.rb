@@ -25,7 +25,7 @@ describe MealDecoder::GoogleVisionAPI do
       result = api.detect_text(image_path)
 
       _(result).wont_be_empty
-      _(result.downcase).must_include '瘦肉炒麵' # Assuming the menu image contains the word "menu"
+      _(result.downcase).must_include '瘦肉炒麵'
     end
 
     it 'returns empty string for image without text' do
