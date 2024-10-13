@@ -79,6 +79,7 @@ DEPENDENCIES
   http (= 5.2)
   minitest (= 5.25)
   minitest-rg (= 5.3)
+  rake (~> 13.2)
   rubocop (= 1.66)
   simplecov (= 0.22.0)
   vcr (= 6.3)
