@@ -5,3 +5,6 @@ spec/fixtures/*
 !spec/fixtures/blank_img.jpg
 !spec/fixtures/text_menu_img.jpeg
 !spec/fixtures/chicken_tikka_masala_ingredients.yml
+!spec/fixtures/google_vision_results.yml
+coverage/*
+!coverage/.resultset.json

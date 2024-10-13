@@ -1,0 +1,36 @@
+---
+text_menu_img:
+  text: |-
+    炒麵
+    瘦肉炒麵
+    (意麵/油
+    豬肝炒麵
+    (意麵/油
+    海鮮炒麵
+    (意麵/油
+    牛肉炒麵
+    (意麵/油
+    粥、飯、麵食館
+    羊肉炒麵
+    (意麵/油
+    蝦仁炒麵
+    (意麵/油
+    請先付款,謝謝!
+    花枝炒麵
+    (意麵/
+    貢丸炒麵
+    (意麵/
+    干貝炒麵
+    (意麵/
+    湯麵
+    Cola
+    瘦肉湯麵
+    肝連肉湯麵
+    (意麵/油麵/烏龍/
+    (意麵/油麵/烏龍
+blank_img:
+  text: ''
+error_responses:
+  unauthorized: Unauthorized access. Check your API key.
+  not_found: Resource not found.
+  bad_request: 'API request failed with status code: 400'
