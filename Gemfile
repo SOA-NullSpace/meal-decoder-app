@@ -16,3 +16,5 @@ gem 'vcr', '6.3'
 gem 'webmock', '3.24'
 
 gem 'rake', '13.2'
+
+gem 'reek', '6.3'
