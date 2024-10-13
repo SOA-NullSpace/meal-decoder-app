@@ -53,10 +53,14 @@ module MealDecoder
         def validate!
           body = JSON.parse(self.body.to_s)
           if body['error']
-            raise NotFound, "Dish not found." if body['error']['message'].include?("not found")
-            raise Unauthorized, "Invalid API key provided." if body['error']['message'].include?("Invalid API key")
+            case body['error']['message']
+            when /not found/
+              raise NotFound, 'Dish not found.'
+            when /Invalid API key/
+              raise Unauthorized, 'Invalid API key provided.'
+            end
           elsif body['choices'].empty? || body['choices'].first['message']['content'].include?("I'm not sure")
-            raise NotFound, "The provided name does not correspond to a known dish."
+            raise NotFound, 'The provided name does not correspond to a known dish.'
           end
           body
         end
@@ -69,22 +73,22 @@ module MealDecoder
         uncertainty_phrases = [
           "I'm not sure",
           "I'm sorry, but",
-          "It seems that there might be",
-          "does not appear to be",
-          "could you clarify",
-          "not familiar with a dish",
-          "not widely recognized", "typo in your request", "doesn’t refer to a specific dish"
+          'It seems that there might be',
+          'does not appear to be',
+          'could you clarify',
+          'not familiar with a dish',
+          'not widely recognized', 'typo in your request', 'doesn’t refer to a specific dish'
         ]
 
         if ingredients_text.empty? ||
            ingredients_text.split(' ').length < 80 ||
            uncertainty_phrases.any? { |phrase| ingredients_text.include?(phrase) }
-          raise Service::IngredientFetcher::NotFound, "The provided name does not correspond to a known dish or the description is too vague."
+          raise Service::IngredientFetcher::NotFound,
+                'The provided name does not correspond to a known dish or the description is too vague.'
         end
 
         ingredients_text
       end
-
     end
   end
 end

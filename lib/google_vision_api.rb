@@ -3,7 +3,6 @@
 require 'net/http'
 require 'uri'
 require 'json'
-require 'yaml'
 require 'base64'
 
 module MealDecoder
@@ -16,8 +15,8 @@ module MealDecoder
       class NotFound < StandardError; end
     end
 
-    def initialize
-      @api_key = load_api_key
+    def initialize(api_key = nil)
+      @api_key = api_key || ENV['GOOGLE_CLOUD_API_TOKEN']
     end
 
     def detect_text(image_path)
@@ -28,11 +27,6 @@ module MealDecoder
     end
 
     private
-
-    def load_api_key
-      secrets = YAML.safe_load(File.read(File.join(__dir__, '..', 'config', 'secrets.yml')))
-      secrets['GOOGLE_CLOUD_API_TOKEN']
-    end
 
     def send_request(image_path)
       uri = URI.parse("#{BASE_URL}?key=#{@api_key}")
@@ -62,8 +56,8 @@ module MealDecoder
       case response
       when Net::HTTPSuccess
         parse_response(response.body)
-      when Net::HTTPUnauthorized
-        raise Errors::Unauthorized, 'Unauthorized access. Check your API key.'
+      when Net::HTTPUnauthorized, Net::HTTPForbidden
+        raise "API request failed with status code: #{response.code}"
       when Net::HTTPNotFound
         raise Errors::NotFound, 'Resource not found.'
       else

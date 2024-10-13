@@ -16,26 +16,20 @@ module MealDecoder
 
   def self.run(dish_name)
     loop do
-      begin
-        ingredients = ingredient_service.fetch_ingredients(dish_name)
-        if ingredients.strip.empty?
-          puts "No ingredients found for the dish: #{dish_name}. Please try another dish:"
-        else
-          Utils.save_ingredients_to_yaml(dish_name, ingredients)
-          puts "Ingredients saved successfully."
-          break
-        end
-      rescue Service::IngredientFetcher::NotFound => e
-        puts "Error: #{e.message}"
-        break
-      rescue Service::IngredientFetcher::Unauthorized, StandardError => e
-        puts "Error: #{e.message}"
+      ingredients = ingredient_service.fetch_ingredients(dish_name)
+      if ingredients.strip.empty?
+        puts "No ingredients found for the dish: #{dish_name}. Please try another dish:"
+      else
+        Utils.save_ingredients_to_yaml(dish_name, ingredients)
+        puts 'Ingredients saved successfully.'
         break
       end
+    rescue Service::IngredientFetcher::NotFound => e
+      puts "Error: #{e.message}"
+      break
     end
   end
 end
-
 module Utils
   def self.save_ingredients_to_yaml(dish_name, ingredients)
     return if ingredients.strip.empty?
@@ -46,6 +40,4 @@ module Utils
   end
 end
 
-if __FILE__ == $0
-  MealDecoder.run("Deligent dragon")
-end
+MealDecoder.run('Deligent dragon') if __FILE__ == $0
