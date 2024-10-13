@@ -1,9 +1,11 @@
 # frozen_string_literal: true
 
-source "https://rubygems.org"
+source 'https://rubygems.org'
 
 # gem "rails"
 
-gem "rubocop", "1.66"
+gem 'rubocop', '1.66'
 
-gem "http", "5.2"
+gem 'http', '5.2'
+
+gem 'rspec', '3.13'

@@ -2,3 +2,5 @@ _*
 config/secrets.yml
 spec/fixtures/*
 !spec/fixtures/.keep
+!spec/fixtures/blank_img.jpg
+!spec/fixtures/text_menu_img.jpeg
