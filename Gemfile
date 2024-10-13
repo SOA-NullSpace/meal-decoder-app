@@ -8,4 +8,6 @@ gem 'rubocop', '1.66'
 
 gem 'http', '5.2'
 
-gem 'rspec', '3.13'
+gem 'minitest', '5.25'
+
+gem 'minitest-rg', '5.3'
