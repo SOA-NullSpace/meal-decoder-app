@@ -9,6 +9,7 @@ module MealDecoder
   class Configuration
     CONFIG = YAML.safe_load_file(File.join(__dir__, 'secrets.yml'), aliases: true)
     OPENAI_API_KEY = CONFIG['OPENAI_API_KEY']
+    GOOGLE_CLOUD_API_TOKEN = CONFIG['GOOGLE_CLOUD_API_TOKEN']
   end
 end
 
