@@ -5,10 +5,10 @@ require_relative 'spec_helper'
 CASSETTE_FILE = 'google_vision_api'
 CORRECT = YAML.safe_load(File.read('spec/fixtures/google_vision_results.yml'))
 
-describe 'Tests Google Vision API library' do
+describe 'MealDecoder::Gateways::GoogleVisionAPI' do
   before do
     VCR.insert_cassette CASSETTE_FILE
-    @api = MealDecoder::GoogleVisionAPI.new(GOOGLE_CLOUD_API_TOKEN)
+    @api = MealDecoder::Gateways::GoogleVisionAPI.new(GOOGLE_CLOUD_API_TOKEN)
   end
 
   after do
@@ -50,7 +50,7 @@ describe 'Tests Google Vision API library' do
   describe 'API interaction' do
     it 'raises exception when API request fails' do
       VCR.use_cassette('api_request_failure') do
-        api_with_invalid_key = MealDecoder::GoogleVisionAPI.new('INVALID_KEY')
+        api_with_invalid_key = MealDecoder::Gateways::GoogleVisionAPI.new('INVALID_KEY')
         _(proc do
           api_with_invalid_key.detect_text(File.join(__dir__, 'fixtures', 'text_menu_img.jpeg'))
         end).must_raise RuntimeError
@@ -59,7 +59,7 @@ describe 'Tests Google Vision API library' do
 
     it 'raises exception when unauthorized' do
       VCR.use_cassette('unauthorized_request') do
-        api_with_empty_key = MealDecoder::GoogleVisionAPI.new('')
+        api_with_empty_key = MealDecoder::Gateways::GoogleVisionAPI.new('')
         error = _(proc do
           api_with_empty_key.detect_text(File.join(__dir__, 'fixtures', 'text_menu_img.jpeg'))
         end).must_raise RuntimeError
