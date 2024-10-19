@@ -13,9 +13,9 @@ module MealDecoder
 
       def find(dish_name)
         ingredients_text = @openai_gateway.fetch_ingredients(dish_name)
-        Entities::Dish.new(
+        MealDecoder::Entities::Dish.new(
           name: dish_name,
-          ingredients: Entities::Ingredients.parse_ingredients(ingredients_text)
+          ingredients: MealDecoder::Entities::Ingredients.parse_ingredients(ingredients_text)
         )
       end
     end

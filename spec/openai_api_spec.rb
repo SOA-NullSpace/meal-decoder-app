@@ -14,8 +14,8 @@ describe MealDecoder::Gateways::OpenAIAPI do
   end
 
   it 'HAPPY: should successfully fetch ingredients for a known dish' do
-    VCR.use_cassette('chicken_tikka_masala') do
-      dish_name = 'Chicken Tikka Masala'
+    VCR.use_cassette('chicken_fried_rice') do
+      dish_name = 'Chicken Fried Rice'
       ingredients = api.fetch_ingredients(dish_name)
       _(ingredients).wont_be_empty
       _(ingredients).must_be_kind_of String

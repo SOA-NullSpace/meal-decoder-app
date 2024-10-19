@@ -1,0 +1,15 @@
+doctype html
+html
+  head
+    title Meal Decoder Results
+    link rel="stylesheet" href="/assets/css/style.css"
+  body
+    .container.mt-5
+      h1.text-center.mb-4 Ingredients for #{dish.name}
+      - if dish.ingredients.empty?
+        p.alert.alert-warning No ingredients found.
+      - else
+        ul.list-group
+          - dish.ingredients.each do |ingredient|
+            li.list-group-item = ingredient
+      a.btn.btn-secondary.mt-4 href="/" Back
