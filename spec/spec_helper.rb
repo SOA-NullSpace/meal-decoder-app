@@ -20,6 +20,6 @@ VCR.configure do |c|
   c.filter_sensitive_data('<OPENAI_API_KEY>') { OPENAI_API_KEY }
   c.default_cassette_options = {
     record: :new_episodes,
-    match_requests_on: [:method, :uri, :body]
+    match_requests_on: %i[method uri body]
   }
 end

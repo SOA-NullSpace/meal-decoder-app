@@ -1,7 +1,7 @@
 {
   "RSpec": {
     "coverage": {
-      "/Users/kanokphanthananchai/Documents/Code/SOA/meal-decoder-api/meal_decoder.rb": {
+      "/Users/bella/NTHU/IMPISA/2ndYear/1stSem/SOA/meal-decoder-api/meal_decoder.rb": {
         "lines": [
           null,
           null,
@@ -50,7 +50,7 @@
           null
         ]
       },
-      "/Users/kanokphanthananchai/Documents/Code/SOA/meal-decoder-api/lib/gateways/google_vision_api.rb": {
+      "/Users/bella/NTHU/IMPISA/2ndYear/1stSem/SOA/meal-decoder-api/lib/gateways/google_vision_api.rb": {
         "lines": [
           null,
           null,
@@ -129,7 +129,7 @@
           null
         ]
       },
-      "/Users/kanokphanthananchai/Documents/Code/SOA/meal-decoder-api/lib/gateways/openai_api.rb": {
+      "/Users/bella/NTHU/IMPISA/2ndYear/1stSem/SOA/meal-decoder-api/lib/gateways/openai_api.rb": {
         "lines": [
           null,
           null,
@@ -228,7 +228,7 @@
           null
         ]
       },
-      "/Users/kanokphanthananchai/Documents/Code/SOA/meal-decoder-api/lib/entities/dish.rb": {
+      "/Users/bella/NTHU/IMPISA/2ndYear/1stSem/SOA/meal-decoder-api/lib/entities/dish.rb": {
         "lines": [
           null,
           null,
@@ -249,7 +249,7 @@
           null
         ]
       },
-      "/Users/kanokphanthananchai/Documents/Code/SOA/meal-decoder-api/lib/entities/ingredients.rb": {
+      "/Users/bella/NTHU/IMPISA/2ndYear/1stSem/SOA/meal-decoder-api/lib/entities/ingredients.rb": {
         "lines": [
           null,
           null,
@@ -276,7 +276,7 @@
           null
         ]
       },
-      "/Users/kanokphanthananchai/Documents/Code/SOA/meal-decoder-api/lib/mappers/dish_mapper.rb": {
+      "/Users/bella/NTHU/IMPISA/2ndYear/1stSem/SOA/meal-decoder-api/lib/mappers/dish_mapper.rb": {
         "lines": [
           null,
           null,
@@ -307,6 +307,6 @@
         ]
       }
     },
-    "timestamp": 1729344882
+    "timestamp": 1729345283
   }
 }
