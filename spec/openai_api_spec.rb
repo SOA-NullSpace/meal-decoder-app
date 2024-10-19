@@ -19,8 +19,12 @@ describe 'MealDecoder::Gateways::OpenAIAPI' do
   end
 
   it 'SAD: should raise error for an unknown dish' do
-    unknown_dish_response = "I'm sorry, but I'm not familiar with a dish called 'Xylophone Surprise with Unicorn Tears'. This doesn't appear to be a real or commonly known dish. Could you please provide more information or clarify if this is a specific recipe you're looking for?"
-    @api.set_test_response(unknown_dish_response)
+    unknown_dish_response = {
+      'choices' => [
+        { 'message' => { 'content' => "I'm sorry, but I'm not familiar with a dish called 'Xylophone Surprise with Unicorn Tears'. This doesn't appear to be a real or commonly known dish. Could you please provide more information or clarify if this is a specific recipe you're looking for?" } }
+      ]
+    }.to_json
+    @api.test_response = unknown_dish_response
 
     dish_name = 'Xylophone Surprise with Unicorn Tears'
     _ do
