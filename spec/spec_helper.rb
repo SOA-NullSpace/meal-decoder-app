@@ -9,7 +9,7 @@ require 'webmock'
 
 require_relative '../meal_decoder'
 
-CONFIG = YAML.safe_load(File.read('config/secrets.yml'))
+CONFIG = YAML.safe_load_file('config/secrets.yml')
 GOOGLE_CLOUD_API_TOKEN = CONFIG['GOOGLE_CLOUD_API_TOKEN']
 OPENAI_API_KEY = CONFIG['OPENAI_API_KEY']
 

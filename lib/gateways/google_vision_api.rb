@@ -19,35 +19,32 @@ module MealDecoder
         raise Errno::ENOENT, "File not found: #{image_path}" unless File.exist?(image_path)
 
         response = send_request(image_path)
-        handle_response(response)
+        parse_text_from_response(response)
       end
 
       private
 
       def send_request(image_path)
         uri = build_uri
-        request = build_request(uri, image_path)
-        perform_request(uri, request)
+        request = build_request(image_path)
+        Net::HTTP.start(uri.hostname, uri.port, use_ssl: true) do |http|
+          http.request(request)
+        end
       end
 
       def build_uri
         URI.parse("#{BASE_URL}?key=#{@api_key}")
       end
 
-      def build_request(uri, image_path)
-        Net::HTTP::Post.new(uri).tap do |request|
-          request.content_type = 'application/json'
-          request.body = request_body(image_path)
+      def build_request(image_path)
+        Net::HTTP::Post.new(build_uri).tap do |req|
+          req.content_type = 'application/json'
+          req.body = build_request_body(image_path)
         end
       end
 
-      def perform_request(uri, request)
-        Net::HTTP.start(uri.hostname, uri.port, use_ssl: uri.scheme == 'https') do |http|
-          http.request(request)
-        end
-      end
-
-      def request_body(image_path)
+      # :reek:UtilityFunction
+      def build_request_body(image_path)
         JSON.dump(
           requests: [{
             image: {
@@ -60,14 +57,11 @@ module MealDecoder
         )
       end
 
-      def handle_response(response)
-        return parse_response(response.body) if response.is_a?(Net::HTTPSuccess)
+      # :reek:FeatureEnvy
+      def parse_text_from_response(response)
+        raise "API request failed with status code: #{response.code}" unless response.is_a?(Net::HTTPSuccess)
 
-        raise "API request failed with status code: #{response.code}"
-      end
-
-      def parse_response(response_body)
-        json_response = JSON.parse(response_body)
+        json_response = JSON.parse(response.body)
         text_annotations = json_response.dig('responses', 0, 'textAnnotations')
         text_annotations&.first&.fetch('description', '')&.strip || ''
       end

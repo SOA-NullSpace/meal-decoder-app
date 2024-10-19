@@ -8,7 +8,14 @@ module MealDecoder
     # The OpenAIAPI class is responsible for interfacing with the OpenAI API to fetch ingredients for dishes.
     class OpenAIAPI
       API_URL = 'https://api.openai.com/v1/chat/completions'
+      UNKNOWN_DISH_PHRASES = [
+        "I'm not sure", "I don't have information", "I'm not familiar with",
+        "I don't know", 'Unable to provide ingredients', 'not a recognized dish',
+        "doesn't appear to be a specific dish", "I don't have enough information",
+        "It's unclear what dish you're referring to"
+      ].freeze
 
+      # Error raised when the API response indicates an unknown dish
       class UnknownDishError < StandardError; end
 
       # Initializes the OpenAIAPI with an API key.
@@ -20,14 +27,16 @@ module MealDecoder
       # Fetches ingredients for a given dish name using the OpenAI API or a test response if set.
       def fetch_ingredients(dish_name)
         response = @test_response || send_request(dish_name)
-        ingredients = parse_response(response)
-        raise UnknownDishError, "Unknown dish: #{dish_name}" if unknown_dish?(ingredients)
-
+        ingredients = extract_ingredients_from_response(response)
+        validate_ingredients(ingredients, dish_name)
         ingredients
       end
 
       # Sets a test response to be used instead of sending a real API request.
-      attr_writer :test_response
+      # This method is intended for testing purposes only.
+      def set_test_response(response)
+        @test_response = response
+      end
 
       private
 
@@ -48,36 +57,38 @@ module MealDecoder
         }
       end
 
-      def parse_response(response)
-        body = response.is_a?(String) ? parse_string_response(response) : parse_http_response(response)
-        handle_response_errors(body) if body['error']
+      def extract_ingredients_from_response(response)
+        body = parse_response_body(response)
+        handle_response_errors(body['error'])
         body['choices'].first['message']['content'].strip
       end
 
-      def parse_string_response(response)
-        JSON.parse(response)
+      # :reek:UtilityFunction
+      def parse_response_body(response)
+        response.is_a?(String) ? JSON.parse(response) : JSON.parse(response.body.to_s)
       end
 
-      def parse_http_response(response)
-        JSON.parse(response.body.to_s)
+      def handle_response_errors(error)
+        return unless error
+
+        raise_appropriate_error(error['message'])
       end
 
-      def handle_response_errors(body)
-        message = body['error']['message']
-        raise 'Dish not found.' if message =~ /not found/
-        raise 'Invalid API key provided.' if message =~ /Invalid API key/
-
-        raise "API error: #{message}"
+      def raise_appropriate_error(message)
+        case message
+        when /not found/ then raise 'Dish not found.'
+        when /Invalid API key/ then raise 'Invalid API key provided.'
+        else raise "API error: #{message}"
+        end
       end
 
+      def validate_ingredients(ingredients, dish_name)
+        raise UnknownDishError, "Unknown dish: #{dish_name}" if unknown_dish?(ingredients)
+      end
+
+      # :reek:UtilityFunction
       def unknown_dish?(ingredients)
-        unknown_phrases = [
-          "I'm not sure", "I don't have information", "I'm not familiar with",
-          "I don't know", 'Unable to provide ingredients', 'not a recognized dish',
-          "doesn't appear to be a specific dish", "I don't have enough information",
-          "It's unclear what dish you're referring to"
-        ]
-        unknown_phrases.any? { |phrase| ingredients.downcase.include?(phrase.downcase) }
+        UNKNOWN_DISH_PHRASES.any? { |phrase| ingredients.downcase.include?(phrase.downcase) }
       end
     end
   end

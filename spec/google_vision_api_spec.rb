@@ -3,9 +3,9 @@
 require_relative 'spec_helper'
 
 CASSETTE_FILE = 'google_vision_api'
-CORRECT = YAML.safe_load(File.read('spec/fixtures/google_vision_results.yml'))
+CORRECT = YAML.safe_load_file('spec/fixtures/google_vision_results.yml')
 
-describe 'MealDecoder::Gateways::GoogleVisionAPI' do
+describe MealDecoder::Gateways::GoogleVisionAPI do
   before do
     VCR.insert_cassette CASSETTE_FILE
     @api = MealDecoder::Gateways::GoogleVisionAPI.new(GOOGLE_CLOUD_API_TOKEN)
