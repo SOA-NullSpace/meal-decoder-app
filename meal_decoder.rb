@@ -3,9 +3,9 @@
 require 'yaml'
 require 'dry-struct'
 require 'dry-types'
-require_relative 'lib/gateways/google_vision_api'
-require_relative 'lib/gateways/openai_api'
-require_relative 'lib/mappers/dish_mapper'
+require_relative 'app/models/gateways/google_vision_api'
+require_relative 'app/models/gateways/openai_api'
+require_relative 'app/models/mappers/dish_mapper'
 
 # Define Types module for use with dry-struct
 module Types
@@ -33,8 +33,8 @@ module MealDecoder
     dish = dish_mapper.find(dish_name)
     save_ingredients_to_yaml(dish)
     puts 'Ingredients saved successfully.'
-  rescue StandardError => error
-    puts "Error: #{error.message}"
+  rescue StandardError
+    puts "Error: #{e.message}"
   end
 
   private
@@ -44,9 +44,7 @@ module MealDecoder
   end
 
   def save_ingredients_to_yaml(dish)
-    File.open(yaml_output_path(dish.name), 'w') do |file|
-      file.write(dish_to_yaml(dish))
-    end
+    File.write(yaml_output_path(dish.name), dish_to_yaml(dish))
   end
 
   # :reek:UtilityFunction
