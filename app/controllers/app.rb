@@ -5,6 +5,7 @@ require 'roda'
 require 'slim'
 require_relative '../models/gateways/openai_api'
 require_relative '../models/mappers/dish_mapper'
+require_relative '../../config/environment'
 
 module MealDecoder
   # The `App` class is the main application for the MealDecoder web service.
@@ -37,6 +38,21 @@ module MealDecoder
           view 'display_dish', locals: { dish: }
         else
           view 'index', locals: { error: 'Invalid dish name. Please enter a valid name (letters and spaces only).' }
+        end
+      end
+
+      request.post 'detect_text' do
+        file = request.params['image_file'][:tempfile]
+        file_path = file.path
+
+        if file
+          api_key = MealDecoder::Configuration::GOOGLE_CLOUD_API_TOKEN
+          google_vision_api = MealDecoder::Gateways::GoogleVisionAPI.new(api_key)
+          text_result = google_vision_api.detect_text(file_path)
+
+          view 'display_text', locals: { text: text_result }
+        else
+          view 'index', locals: { error: 'No file uploaded. Please upload an image file.' }
         end
       end
     end

@@ -1,0 +1,13 @@
+doctype html
+html
+  head
+    title Meal Decoder - Text Detection Results
+    link rel="stylesheet" href="/assets/css/style.css"
+  body
+    .container.mt-5
+      h1.text-center.mb-4 Text Detected
+      - if text.empty?
+        p.alert.alert-warning No text found in the image.
+      - else
+        p.alert.alert-success = text
+      a.btn.btn-secondary.mt-4 href="/" Back
