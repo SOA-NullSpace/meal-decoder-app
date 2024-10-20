@@ -8,7 +8,7 @@ end
 
 desc 'run tests'
 task :spec do
-  sh 'ruby spec/gateway_github_spec.rb'
+  sh 'ruby spec/*.rb'
 end
 
 desc 'Keep rerunning tests upon changes'

@@ -33,7 +33,7 @@ module MealDecoder
     dish = dish_mapper.find(dish_name)
     save_ingredients_to_yaml(dish)
     puts 'Ingredients saved successfully.'
-  rescue StandardError => e
+  rescue StandardError
     puts "Error: #{e.message}"
   end
 
