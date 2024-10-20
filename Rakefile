@@ -8,10 +8,18 @@ task :default do
   puts `rake -T`
 end
 
-desc 'run tests'
-task :spec do
-  sh 'ruby spec/gateway_github_spec.rb'
+desc 'run Google Vision API tests'
+task :spec_google do
+  sh 'ruby spec/google_vision_api_spec.rb'
 end
+
+desc 'run OpenAI API tests'
+task :spec_openai do
+  sh 'ruby spec/openai_api_spec.rb'
+end
+
+desc 'run all tests'
+task spec: %i[spec_google spec_openai]
 
 desc 'Keep rerunning tests upon changes'
 task :respec do
