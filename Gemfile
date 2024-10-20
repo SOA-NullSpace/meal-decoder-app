@@ -24,7 +24,7 @@ gem 'dry-struct', '1.6'
 gem 'dry-types', '1.7'
 
 # Web Application
-gem 'logger', '~> 1.6'
-gem 'puma', '~> 6.4'
-gem 'roda', '~> 3.85'
-gem 'slim', '~> 5.2'
+gem 'logger', '1.6'
+gem 'puma', '6.4'
+gem 'roda', '3.85'
+gem 'slim', '5.2'
