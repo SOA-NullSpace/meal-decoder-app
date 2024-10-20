@@ -9,5 +9,7 @@ html
       - if text.empty?
         p.alert.alert-warning No text found in the image.
       - else
-        p.alert.alert-success = text
+        .alert.alert-success
+          - text.split("\n").each do |line|
+            p = line
       a.btn.btn-secondary.mt-4 href="/" Back
