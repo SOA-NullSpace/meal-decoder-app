@@ -1,44 +1,56 @@
 # frozen_string_literal: true
 
 require 'rake/testtask'
-require 'rubocop/rake_task'
 
-desc 'Run tests'
-Rake::TestTask.new(:test) do |t|
-  t.libs << 'test'
-  t.libs << 'lib'
-  t.test_files = FileList['spec/**/*_spec.rb']
-  t.warning = false
+CODE = 'lib/'
+
+task :default do
+  puts `rake -T`
 end
 
-desc 'Run rubocop'
-RuboCop::RakeTask.new(:rubocop) do |t|
-  t.options = ['--display-cop-names']
+desc 'run Google Vision API tests'
+task :spec_google do
+  sh 'ruby spec/google_vision_api_spec.rb'
 end
 
-desc 'Run tests with coverage'
-task :test_with_coverage do
-  ENV['COVERAGE'] = 'true'
-  Rake::Task['test'].execute
+desc 'run OpenAI API tests'
+task :spec_openai do
+  sh 'ruby spec/openai_api_spec.rb'
 end
 
-begin
-  require 'reek/rake/task'
+desc 'run all tests'
+task spec: %i[spec_google spec_openai]
 
-  desc 'Run code smell detection'
-  Reek::Rake::Task.new(:reek) do |t|
-    t.source_files = 'lib/**/*.rb'
-    t.config_file = '.reek.yml'
-    t.fail_on_error = false
+desc 'Keep rerunning tests upon changes'
+task :respec do
+  sh "rerun -c 'rake spec' --ignore 'coverage/*'"
+end
+
+namespace :vcr do
+  desc 'delete cassette fixtures'
+  task :wipe do
+    sh 'rm spec/fixtures/cassettes/*.yml' do |ok, _|
+      puts(ok ? 'Cassettes deleted' : 'No cassettes found')
+    end
   end
-rescue LoadError
-  desc 'Run code smell detection (Not available)'
+end
+
+namespace :quality do
+  desc 'run all static-analysis quality checks'
+  task all: %i[rubocop reek flog]
+
+  desc 'code style linter'
+  task :rubocop do
+    sh 'rubocop'
+  end
+
+  desc 'code smell detector'
   task :reek do
-    warn 'Reek is not available. Add it to your Gemfile to use this task.'
+    sh 'reek'
+  end
+
+  desc 'complexiy analysis'
+  task :flog do
+    sh "flog #{CODE}"
   end
 end
-
-desc 'Run all quality checks'
-task quality: %i[rubocop reek test_with_coverage]
-
-task default: :quality

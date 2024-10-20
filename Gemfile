@@ -18,3 +18,7 @@ gem 'webmock', '3.24'
 gem 'rake', '13.2'
 
 gem 'reek', '6.3'
+
+gem 'dry-struct', '1.6'
+
+gem 'dry-types', '1.7'
