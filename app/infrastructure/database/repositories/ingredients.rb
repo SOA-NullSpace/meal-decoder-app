@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative '../orm/ingredients_orm'
+require_relative '../orm/ingredient_orm'
 
 module MealDecoder
   module Repository

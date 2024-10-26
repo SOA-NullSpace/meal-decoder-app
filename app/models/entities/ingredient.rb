@@ -6,7 +6,7 @@ module MealDecoder
     # The Ingredients class is designed to handle the processing and representation
     # of ingredients from a given text. It parses the text into an array of ingredients,
     # providing access to the list as an array via the `to_a` method.
-    class Ingredients
+    class Ingredient
       attr_reader :items
 
       # Initializes the Ingredients object with a text containing ingredients,

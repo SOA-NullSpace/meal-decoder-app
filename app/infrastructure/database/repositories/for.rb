@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative 'dish'
+require_relative 'dishes'
 require_relative 'ingredients'
 
 module MealDecoder
@@ -9,7 +9,7 @@ module MealDecoder
     module For
       ENTITY_REPOSITORY = {
         MealDecoder::Entities::Dish => Dishes,
-        Entities::Ingredients => Ingredients
+        Entities::Ingredient => Ingredients
       }.freeze
 
       def self.klass(entity_klass)

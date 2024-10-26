@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 require_relative '../../../models/entities/dish'
-require_relative '../../../models/entities/ingredients'
+require_relative '../../../models/entities/ingredient'
 
 module MealDecoder
   module Mappers
@@ -15,7 +15,7 @@ module MealDecoder
         ingredients_text = @openai_gateway.fetch_ingredients(dish_name)
         MealDecoder::Entities::Dish.new(
           name: dish_name,
-          ingredients: MealDecoder::Entities::Ingredients.parse_ingredients(ingredients_text)
+          ingredients: MealDecoder::Entities::Ingredient.parse_ingredients(ingredients_text)
         )
       end
     end
