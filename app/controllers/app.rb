@@ -3,8 +3,8 @@
 
 require 'roda'
 require 'slim'
-require_relative '../models/gateways/openai_api'
-require_relative '../models/mappers/dish_mapper'
+require_relative '../infrastructure/meal_decoder/gateways/openai_api'
+require_relative '../infrastructure/meal_decoder/mappers/dish_mapper'
 require_relative '../../config/environment'
 
 module MealDecoder

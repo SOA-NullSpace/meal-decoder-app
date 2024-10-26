@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
-require_relative '../entities/dish'
-require_relative '../entities/ingredients'
+require_relative '../../../models/entities/dish'
+require_relative '../../../models/entities/ingredients'
 
 module MealDecoder
   module Mappers
