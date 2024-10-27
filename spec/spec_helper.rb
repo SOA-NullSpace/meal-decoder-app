@@ -1,26 +1,21 @@
+# frozen_string_literal: true
+
 ENV['RACK_ENV'] = 'test'
+
 require 'simplecov'
 SimpleCov.start
 
 require 'yaml'
 require 'minitest/autorun'
+require 'minitest/unit'
 require 'minitest/rg'
 require 'vcr'
 require 'webmock'
 
-require_relative '../meal_decoder'
+require_relative '../require_app'
+require_app
 
-CONFIG = YAML.safe_load_file('config/secrets.yml')
-GOOGLE_CLOUD_API_TOKEN = CONFIG['GOOGLE_CLOUD_API_TOKEN']
-OPENAI_API_KEY = CONFIG['OPENAI_API_KEY']
-
-VCR.configure do |c|
-  c.cassette_library_dir = 'spec/fixtures/cassettes'
-  c.hook_into :webmock
-  c.filter_sensitive_data('<GOOGLE_CLOUD_API_TOKEN>') { GOOGLE_CLOUD_API_TOKEN }
-  c.filter_sensitive_data('<OPENAI_API_KEY>') { OPENAI_API_KEY }
-  c.default_cassette_options = {
-    record: :new_episodes,
-    match_requests_on: %i[method uri body]
-  }
-end
+# Configuration for test run
+CONFIG = YAML.safe_load_file('config/secrets.yml')['test']
+OPENAI_API_KEY = MealDecoder::App.config.OPENAI_API_KEY
+GOOGLE_CLOUD_API_TOKEN = MealDecoder::App.config.GOOGLE_CLOUD_API_TOKEN

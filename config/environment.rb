@@ -25,14 +25,30 @@ module MealDecoder
     def self.config = Figaro.env
 
     configure :development, :test do
-      ENV['DATABASE_URL'] = "sqlite://#{config.DB_FILENAME}"
+      require 'pry'
+      # Make sure the db directory exists
+      db_path = File.expand_path("db/local/#{environment}.db")
+      FileUtils.mkdir_p(File.dirname(db_path))
+      ENV['DATABASE_URL'] = "sqlite://#{db_path}"
+    end
+
+    configure :production do
+      # Use DATABASE_URL from environment
     end
 
     # Database Setup
-    @db = Sequel.connect(ENV.fetch('DATABASE_URL'))
-    def self.db = @db # rubocop:disable Style/TrivialAccessors
+    DB = Sequel.connect(ENV.fetch('DATABASE_URL'))
+    def self.db = DB # Class accessor for database
 
     # Load all application files
-    # Dir.glob(File.join(__dir__, '../app/**/*.rb')).sort.each { |file| require file }
+    def self.setup_application!
+      Sequel.extension :migration
+      db.extension :freeze_datasets if ENV['RACK_ENV'] == 'production'
+
+      # Run migrations if in development/test
+      if %w[development test].include?(ENV['RACK_ENV'])
+        Sequel::Migrator.run(db, 'db/migrations') if db.tables.empty?
+      end
+    end
   end
 end
