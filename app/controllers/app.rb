@@ -29,45 +29,30 @@ module MealDecoder
       # POST /fetch_dish
       r.post 'fetch_dish' do
         dish_name = r.params['dish_name'].strip
-        puts "\n=== Starting fetch_dish for: #{dish_name} ==="
 
         if dish_name.match?(/\A[\p{L}\s]+\z/u)
           begin
-            puts "Checking repository for dish: #{dish_name}"
             dish = Repository::For.klass(Entity::Dish).find_name(dish_name)
-            puts "Repository result: #{dish.inspect}"
 
             if dish.nil? || dish.ingredients.empty?
-              puts "Dish not found or has no ingredients, fetching from API..."
               api_key = Figaro.env.openai_api_key
-              puts "API Key exists: #{!api_key.nil? && !api_key.empty?}"
-
               api = Gateways::OpenAIAPI.new(api_key)
               mapper = Mappers::DishMapper.new(api)
-
               api_dish = mapper.find(dish_name)
-              puts "API response dish: #{api_dish.inspect}"
 
               if dish&.id && dish.ingredients.empty?
-                puts "Deleting existing dish with no ingredients..."
                 Repository::For.klass(Entity::Dish).delete(dish.id)
               end
 
-              puts "Creating dish in repository..."
               dish = Repository::For.klass(Entity::Dish).create(api_dish)
-              puts "Created dish: #{dish.inspect}"
             end
 
             if dish && dish.ingredients.any?
-              puts "Rendering dish with ingredients: #{dish.ingredients.inspect}"
               r.redirect "/display_dish?name=#{CGI.escape(dish_name)}"
             else
-              puts "No ingredients found for dish"
               r.redirect "/?error=#{CGI.escape('No ingredients found for this dish.')}"
             end
           rescue StandardError => e
-            puts "ERROR: #{e.class} - #{e.message}"
-            puts e.backtrace
             r.redirect "/?error=#{CGI.escape(e.message)}"
           end
         else
