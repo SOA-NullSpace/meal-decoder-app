@@ -8,8 +8,8 @@ module MealDecoder
     # Finds the right repository for an entity object or class
     module For
       ENTITY_REPOSITORY = {
-        MealDecoder::Entities::Dish => Dishes,
-        Entities::Ingredient => Ingredients
+        Entity::Dish => Dishes,
+        Entity::Ingredient => Ingredients
       }.freeze
 
       def self.klass(entity_klass)
