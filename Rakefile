@@ -31,12 +31,12 @@ end
 
 desc 'Run Google Vision API tests'
 task :spec_google do
-  sh 'ruby spec/google_vision_api_spec.rb'
+  sh 'ruby spec/gateway_google_vision_spec.rb'
 end
 
 desc 'Run OpenAI API tests'
 task :spec_openai do
-  sh 'ruby spec/openai_api_spec.rb'
+  sh 'ruby spec/gateway_openai_spec.rb'
 end
 
 task spec: %i[spec_google spec_openai]
