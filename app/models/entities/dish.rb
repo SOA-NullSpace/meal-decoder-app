@@ -10,10 +10,11 @@ end
 
 # The MealDecoder module encapsulates all entities related to the MealDecoder application.
 module MealDecoder
-  module Entities
+  module Entity
     # The Dish class represents a dish with a name and a list of ingredients.
     # It uses dry-struct to ensure the attributes conform to specified data types.
     class Dish < Dry::Struct
+      attribute :id, Types::Integer.optional
       attribute :name, Types::Strict::String
       attribute :ingredients, Types::Array.of(Types::Strict::String)
     end

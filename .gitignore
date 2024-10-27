@@ -8,3 +8,4 @@ spec/fixtures/*
 !spec/fixtures/google_vision_results.yml
 coverage/*
 !coverage/.resultset.json
+*.db

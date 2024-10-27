@@ -28,3 +28,19 @@ To search for dishes, view possible ingredients, to let users find out the thing
 - **Dish**: Represents the food item with its name and required ingredients.
 - **IngredientFetcher**: Interfaces with OpenAI to **fetch** and **parse** ingredients.
 - **DishMapper**: Parse data fetched by the **IngredientFetcher** into output **ingredients** ymal file.
+
+## Setup
+
+- Copy `config/secrets_example.yml` to `config/secrets.yml` and update token
+- Ensure correct version of Ruby install (see `.ruby-version` for `rbenv`)
+- Run `bundle install`
+- Rub `bundle exec rake db:migrate` to create dev database
+- Rub `RACK_ENV=test bundle exec rake db:migrate` to create test database
+
+## Running tests
+
+To run tests:
+
+```shell
+rake spec
+```

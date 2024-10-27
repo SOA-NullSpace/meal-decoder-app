@@ -1,58 +1,93 @@
-# app/controllers/app.rb
 # frozen_string_literal: true
 
 require 'roda'
 require 'slim'
-require_relative '../models/gateways/openai_api'
-require_relative '../models/mappers/dish_mapper'
+require_relative '../infrastructure/meal_decoder/gateways/openai_api'
+require_relative '../infrastructure/meal_decoder/gateways/google_vision_api'
+require_relative '../infrastructure/meal_decoder/mappers/dish_mapper'
 require_relative '../../config/environment'
 
 module MealDecoder
-  # The `App` class is the main application for the MealDecoder web service.
-  # It handles routing, renders views, and integrates with external APIs to fetch dish information.
-  # This class uses the Roda framework for routing and Slim for templating.
+  # Web App
   class App < Roda
     plugin :environments
     plugin :render, engine: 'slim', views: 'app/view'
-
-    # Serve static files from the 'view/assets' folder
     plugin :public, root: File.join(__dir__, '../view/assets')
     plugin :static, ['/assets']
+    plugin :flash
+    plugin :all_verbs
+    plugin :request_headers
 
-    route do |request|
-      request.public # Serve static files like CSS and images
+    route do |r|
+      r.public # Serve static files
 
-      request.root do
+      # GET /
+      r.root do
         view 'index', locals: { error: nil }
       end
 
-      request.post 'fetch_dish' do
-        dish_name = request.params['dish_name'].strip
+      # POST /fetch_dish
+      r.post 'fetch_dish' do
+        dish_name = r.params['dish_name'].strip
 
         if dish_name.match?(/\A[\p{L}\s]+\z/u)
-          api_key = MealDecoder::Configuration::OPENAI_API_KEY
-          dish = MealDecoder::Mappers::DishMapper.new(
-            MealDecoder::Gateways::OpenAIAPI.new(api_key)
-          ).find(dish_name)
+          begin
+            dish = Repository::For.klass(Entity::Dish).find_name(dish_name)
 
-          view 'display_dish', locals: { dish: }
+            if dish.nil? || dish.ingredients.empty?
+              api_key = Figaro.env.openai_api_key
+              api = Gateways::OpenAIAPI.new(api_key)
+              mapper = Mappers::DishMapper.new(api)
+              api_dish = mapper.find(dish_name)
+
+              if dish&.id && dish.ingredients.empty?
+                Repository::For.klass(Entity::Dish).delete(dish.id)
+              end
+
+              dish = Repository::For.klass(Entity::Dish).create(api_dish)
+            end
+
+            if dish && dish.ingredients.any?
+              r.redirect "/display_dish?name=#{CGI.escape(dish_name)}"
+            else
+              r.redirect "/?error=#{CGI.escape('No ingredients found for this dish.')}"
+            end
+          rescue StandardError => e
+            r.redirect "/?error=#{CGI.escape(e.message)}"
+          end
         else
-          view 'index', locals: { error: 'Invalid dish name. Please enter a valid name (letters and spaces only).' }
+          r.redirect "/?error=#{CGI.escape('Invalid dish name. Please enter a valid name (letters and spaces only).')}"
         end
       end
 
-      request.post 'detect_text' do
-        file = request.params['image_file'][:tempfile]
+      # GET /display_dish
+      r.get 'display_dish' do
+        dish_name = r.params['name']
+        if dish_name
+          dish = Repository::For.klass(Entity::Dish).find_name(dish_name)
+          if dish
+            view 'display_dish', locals: { dish: dish }
+          else
+            r.redirect "/?error=#{CGI.escape('Dish not found.')}"
+          end
+        else
+          r.redirect '/'
+        end
+      end
+
+      # POST /detect_text
+      r.post 'detect_text' do
+        file = r.params['image_file'][:tempfile]
         file_path = file.path
 
         if file
-          api_key = MealDecoder::Configuration::GOOGLE_CLOUD_API_TOKEN
-          google_vision_api = MealDecoder::Gateways::GoogleVisionAPI.new(api_key)
+          api_key = Figaro.env.google_cloud_api_token
+          google_vision_api = Gateways::GoogleVisionAPI.new(api_key)
           text_result = google_vision_api.detect_text(file_path)
 
           view 'display_text', locals: { text: text_result }
         else
-          view 'index', locals: { error: 'No file uploaded. Please upload an image file.' }
+          r.redirect "/?error=#{CGI.escape('No file uploaded. Please upload an image file.')}"
         end
       end
     end

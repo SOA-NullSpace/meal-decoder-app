@@ -51,9 +51,16 @@ module MealDecoder
         {
           model: 'gpt-4',
           messages: [
-            { role: 'system', content: 'You are a helpful assistant. List the ingredients of a dish.' },
-            { role: 'user', content: "What are the ingredients in #{dish_name}?" }
-          ]
+            {
+              role: 'system',
+              content: 'You are a helpful assistant that lists ingredients. Provide only the ingredient names, one per line. Do not include measurements, numbers, or any other text. If you do not know the dish, say so directly.'
+            },
+            {
+              role: 'user',
+              content: "List the ingredients in #{dish_name}, providing only the ingredient names:"
+            }
+          ],
+          temperature: 0.7
         }
       end
 
