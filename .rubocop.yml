@@ -1,8 +1,13 @@
 ---
-# Apply latest Ruby style guide and newly introduced cops
+require:
+  - rubocop-minitest
+  - rubocop-rake
+  - rubocop-sequel
+
 AllCops:
   TargetRubyVersion: 3.3.5
   NewCops: enable
+  SuggestExtensions: false
   Exclude:
     - "_snippets/*"
   Include:
@@ -14,3 +19,7 @@ Metrics/BlockLength:
   Enabled: true
   Exclude:
     - "spec/**/*"
+    - "Rakefile"
+  AllowedMethods:
+    - namespace
+    - task

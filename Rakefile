@@ -6,7 +6,18 @@ require 'sequel'
 require 'fileutils'
 
 # Load application and environment configurations
-require_relative 'require_app' # Assuming this file sets up your application environment
+require_relative 'require_app'
+
+# Helper module for database tasks
+module DbHelper
+  module_function
+
+  def app
+    require_relative 'config/environment'
+    require_relative 'spec/helpers/database_helper'
+    MealDecoder::App
+  end
+end
 
 task :default do
   puts `rake -T`
@@ -48,24 +59,22 @@ end
 
 # Database tasks
 namespace :db do
+  desc 'Setup database configuration'
   task :config do
     require 'sequel'
-    require_relative 'config/environment' # load config info
-    require_relative 'spec/helpers/database_helper'
-
-    def app = MealDecoder::App
+    @app = DbHelper.app
   end
 
   desc 'Run migrations'
   task migrate: :config do
     Sequel.extension :migration
-    puts "Migrating #{app.environment} database to latest"
-    Sequel::Migrator.run(app.db, 'db/migrations')
+    puts "Migrating #{@app.environment} database to latest"
+    Sequel::Migrator.run(@app.db, 'db/migrations')
   end
 
   desc 'Wipe records from all tables'
   task wipe: :config do
-    if app.environment == :production
+    if @app.environment == :production
       puts 'Do not damage production database!'
       return
     end
@@ -74,15 +83,15 @@ namespace :db do
     DatabaseHelper.wipe_database
   end
 
-  desc 'Delete dev or test database file (set correct RACK_ENV)'
+  desc 'Delete dev or test database file'
   task drop: :config do
-    if app.environment == :production
+    if @app.environment == :production
       puts 'Do not damage production database!'
       return
     end
 
-    FileUtils.rm(MealDecoder::App.config.DB_FILENAME)
-    puts "Deleted #{MealDecoder::App.config.DB_FILENAME}"
+    FileUtils.rm(@app.config.DB_FILENAME)
+    puts "Deleted #{@app.config.DB_FILENAME}"
   end
 end
 
@@ -92,7 +101,7 @@ task :console do
   sh 'pry -r ./load_all'
 end
 
-# VCR and quality control tasks (for static analysis and code quality checks)
+# VCR tasks
 namespace :vcr do
   desc 'Delete cassette fixtures'
   task :wipe do
@@ -101,6 +110,7 @@ namespace :vcr do
   end
 end
 
+# Quality control tasks
 namespace :quality do
   desc 'Run all static-analysis quality checks'
   task all: %i[rubocop reek flog]
@@ -117,6 +127,6 @@ namespace :quality do
 
   desc 'Complexity analysis'
   task :flog do
-    sh 'flog -m config app' # Update paths as needed for your application structure
+    sh 'flog -m config app'
   end
 end
