@@ -82,6 +82,7 @@ GEM
     minitest-rg (5.3.0)
       minitest (~> 5.0)
     nio4r (2.7.3)
+    ostruct (0.6.0)
     parallel (1.26.3)
     parser (3.3.5.0)
       ast (~> 2.4.1)
@@ -171,10 +172,11 @@ DEPENDENCIES
   figaro
   flog
   hirb
-  http (~> 5.0)
+  http (= 5.2)
   logger (= 1.6)
   minitest (= 5.25)
   minitest-rg (= 5.3)
+  ostruct (= 0.6.0)
   pry
   puma (= 6.4)
   rake (= 13.2)
@@ -185,7 +187,7 @@ DEPENDENCIES
   rubocop-minitest
   rubocop-rake
   rubocop-sequel
-  sequel (~> 5.0)
+  sequel (= 5.85)
   simplecov (= 0.22.0)
   slim (= 5.2)
   sqlite3 (~> 1.0)

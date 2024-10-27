@@ -2,6 +2,8 @@
 
 source 'https://rubygems.org'
 
+gem 'ostruct', '0.6.0'
+
 # gem "rails"
 gem 'pry'
 gem 'rake', '13.2'
@@ -10,7 +12,7 @@ gem 'dry-struct', '1.6'
 gem 'dry-types', '1.7'
 
 # Networking
-gem 'http', '~> 5.0'
+gem 'http', '5.2'
 
 # Web Application
 gem 'logger', '1.6'
@@ -23,7 +25,7 @@ gem 'figaro'
 # Database
 gem 'hirb'
 # gem 'hirb-unicode' # incompatible with new rubocop
-gem 'sequel', '~> 5.0'
+gem 'sequel', '5.85'
 
 group :development, :test do
   gem 'sqlite3', '~> 1.0'
