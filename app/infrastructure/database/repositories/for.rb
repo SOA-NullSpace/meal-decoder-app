@@ -2,14 +2,16 @@
 
 require_relative 'dishes'
 require_relative 'ingredients'
+require_relative '../../../domain/entities/dish_ingredient'
 
 module MealDecoder
   module Repository
     # Finds the right repository for an entity object or class
     module For
       ENTITY_REPOSITORY = {
-        Entity::Dish => Dishes,
-        Entity::Ingredient => Ingredients
+        MealDecoder::Entity::Dish => Dishes,
+        MealDecoder::Entity::Ingredient => Ingredients,
+        MealDecoder::Entity::DishIngredient => Dishes
       }.freeze
 
       def self.klass(entity_klass)

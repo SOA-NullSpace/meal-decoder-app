@@ -7,11 +7,11 @@ module MealDecoder
     # Repository for Dishes
     class Dishes
       def self.find_id(id)
-        rebuild_entity Database::DishOrm.first(id:)
+        rebuild_entity Database::DishOrm.first(id: id)
       end
 
       def self.find_name(name)
-        rebuild_entity Database::DishOrm.first(name:)
+        rebuild_entity Database::DishOrm.first(name: name)
       end
 
       def self.create(entity)
@@ -32,14 +32,38 @@ module MealDecoder
         Database::DishOrm.where(id:).delete
       end
 
+      # def self.rebuild_entity(db_record)
+      #   return nil unless db_record
+
+      #   Entity::Dish.new(
+      #     id: db_record.id,
+      #     name: db_record.name,
+      #     ingredients: db_record.ingredients.map(&:name)
+      #   )
+      # end
       def self.rebuild_entity(db_record)
         return nil unless db_record
 
         Entity::Dish.new(
           id: db_record.id,
           name: db_record.name,
-          ingredients: db_record.ingredients.map(&:name)
+          ingredients: db_record.ingredients.map(&:name),
+          total_calories: calculate_total_calories(db_record.ingredients)
         )
+      end
+
+      def self.calculate_total_calories(ingredients)
+        ingredients.sum do |ingredient|
+          case ingredient.name.downcase
+          when /chicken|beef|pork|fish/ then 250.0
+          when /rice|pasta|bread|noodle/ then 130.0
+          when /cheese|butter/ then 400.0
+          when /vegetable|carrot|broccoli|spinach|lettuce/ then 50.0
+          when /oil/ then 900.0
+          when /sauce|dressing/ then 100.0
+          else 120.0
+          end
+        end
       end
     end
   end

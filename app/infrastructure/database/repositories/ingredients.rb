@@ -17,16 +17,18 @@ module MealDecoder
       def self.create(entity)
         return nil unless entity
 
-        db_record = Database::IngredientOrm.find_or_create(name: entity.name)
+        db_record = Database::IngredientOrm.find_or_create(name: entity.name,
+        calories_per_100g: entity.calories_per_100g || 0.0)
         rebuild_entity(db_record)
       end
 
       def self.rebuild_entity(db_record)
         return nil unless db_record
 
-        Entity::Ingredient.new(
+        MealDecoder::Entity::Ingredient.new(
           id: db_record.id,
-          name: db_record.name
+          name: db_record.name,
+          calories_per_100g: db_record.calories_per_100g
         )
       end
 

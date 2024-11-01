@@ -6,11 +6,13 @@
 # Usage:
 #  require_app
 #  require_app(%w[infrastructure models])
-def require_app(folders = %w[models infrastructure views controllers])
+def require_app(folders = %w[domain infrastructure views controllers])
   app_list = Array(folders).map { |folder| "app/#{folder}" }
   full_list = ['config', app_list].flatten.join(',')
+  require_relative 'app/domain/values/types'
 
-  Dir.glob("./{#{full_list}}/**/*.rb").each do |file|
-    require file
-  end
+  Dir.glob("./{#{full_list}}/**/*.rb")
+     .sort
+     .reject { |file| file.include? 'values/types.rb' }
+     .each { |file| require file }
 end

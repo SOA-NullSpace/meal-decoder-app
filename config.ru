@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 # config.ru
-
 require_relative 'require_app'
 require_app
 
