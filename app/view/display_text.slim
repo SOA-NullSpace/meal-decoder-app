@@ -9,7 +9,15 @@ html
       - if text.empty?
         p.alert.alert-warning No text found in the image.
       - else
-        .alert.alert-success
-          - text.split("\n").each do |line|
-            p = line
-      a.btn.btn-secondary.mt-4 href="/" Back
+        form.detected-text-form action="/fetch_dish" method="post"
+          .alert.alert-success
+            .detected-items
+              - text.split("\n").each_with_index do |line, index|
+                - unless line.strip.empty?
+                  .form-check.mb-2
+                    input.form-check-input id="text_#{index}" type="radio" name="dish_name" value="#{line.strip}" required="required"
+                    label.form-check-label for="text_#{index}"
+                      = line.strip
+          .text-center.mt-4
+            button.btn.btn-primary.mx-2 type="submit" Search Ingredients
+            a.btn.btn-secondary href="/" Cancel
