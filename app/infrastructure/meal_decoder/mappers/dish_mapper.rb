@@ -12,52 +12,65 @@ module MealDecoder
       end
 
       def find(dish_name)
-        puts "\n=== DishMapper.find for: #{dish_name} ==="
-
-        # Get ingredients text from OpenAI
-        puts "Calling OpenAI gateway..."
-        ingredients_text = @openai_gateway.fetch_ingredients(dish_name)
-        puts "Received ingredients text: #{ingredients_text}"
-
-        # Parse ingredients text into array
-        puts "Parsing ingredients..."
-        ingredients = MealDecoder::Entity::Ingredient.parse_ingredients(ingredients_text)
-        puts "Parsed ingredients: #{ingredients.inspect}"
-
-        dish_ingredients = ingredients.map { |name| calculate_ingredient_calories(name) }
-        total_calories = dish_ingredients.sum { |ing| ing[:calories] }
-
-        # Create and return a new Dish entity
-        puts "Creating Dish entity..."
-        dish = MealDecoder::Entity::Dish.new(
-          id: nil,  # Explicitly set id to nil for new dishes
-          name: dish_name,
-          ingredients: ingredients,
-          total_calories: total_calories
-        )
-        puts "Created dish: #{dish.inspect}"
-        puts "=== End DishMapper.find ===\n"
-
-        dish
+        puts "\n=== Starting the dish lookup process for: #{dish_name} ==="
+        prepare_and_log_dish(dish_name)
       rescue StandardError => error
-        puts "ERROR in DishMapper: #{e.class} - #{e.message}"
-        puts "Backtrace:\n#{e.backtrace.join("\n")}"
-        raise
+        log_and_raise_error(error)
       end
 
       private
 
-       def calculate_ingredient_calories(ingredient_name)
-        calories = case ingredient_name.downcase
-                  when /chicken|beef|pork|fish/ then 250.0
-                  when /rice|pasta|bread|noodle/ then 130.0
-                  when /cheese|butter/ then 400.0
-                  when /vegetable|carrot|broccoli|spinach|lettuce/ then 50.0
-                  when /oil/ then 900.0
-                  when /sauce|dressing/ then 100.0
-                  else 120.0
-                  end
-        { name: ingredient_name, calories: calories }
+      def prepare_and_log_dish(dish_name)
+        dish = fetch_and_prepare_dish(dish_name)
+        log_creation(dish)
+        dish
+      end
+
+      def fetch_and_prepare_dish(dish_name)
+        ingredients_text = fetch_ingredients_text(dish_name)
+        ingredients = parse_ingredients(ingredients_text)
+        calculate_and_create_dish(dish_name, ingredients)
+      end
+
+      def calculate_and_create_dish(dish_name, ingredients)
+        total_calories = calculate_total_calories(ingredients)
+        create_dish_entity(dish_name, ingredients, total_calories)
+      end
+
+      def fetch_ingredients_text(dish_name)
+        puts "Retrieving ingredients from OpenAI for: #{dish_name}"
+        @openai_gateway.fetch_ingredients(dish_name).tap do |ingredients_text|
+          puts "Ingredients retrieved: #{ingredients_text}"
+        end
+      end
+
+      def parse_ingredients(ingredients_text)
+        puts "Parsing ingredients list..."
+        MealDecoder::Entity::Ingredient.parse_ingredients(ingredients_text)
+      end
+
+      def calculate_total_calories(ingredients)
+        puts "Calculating total calories..."
+        ingredients.map { |name| NutritionCalculator.get_calories(name) }.sum
+      end
+
+      def create_dish_entity(dish_name, ingredients, total_calories)
+        puts "Assembling the Dish entity..."
+        MealDecoder::Entity::Dish.new(
+          id: nil, name: dish_name, ingredients: ingredients, total_calories: total_calories
+        ).tap do |dish|
+          puts "Dish created: #{dish.inspect}"
+        end
+      end
+
+      def log_creation(dish)
+        puts "Dish fully prepared and logged: #{dish.inspect}"
+      end
+
+      def log_and_raise_error(error)
+        puts "ERROR in DishMapper: #{error.class} - #{error.message}"
+        puts "Backtrace:\n#{error.backtrace.join("\n")}"
+        raise error
       end
     end
   end

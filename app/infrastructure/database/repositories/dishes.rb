@@ -18,14 +18,20 @@ module MealDecoder
         return nil unless entity
 
         db_dish = Database::DishOrm.find_or_create(name: entity.name)
-
         # Handle ingredients
-        entity.ingredients.each do |ingredient_name|
+        # entity.ingredients.each do |ingredient_name|
+        #   ingredient = Database::IngredientOrm.find_or_create(name: ingredient_name)
+        #   db_dish.add_ingredient(ingredient) unless db_dish.ingredients.include?(ingredient)
+        # end
+        handle_ingredients(db_dish, entity.ingredients)
+        rebuild_entity(db_dish)
+      end
+
+      def self.handle_ingredients(db_dish, ingredient_names)
+        ingredient_names.each do |ingredient_name|
           ingredient = Database::IngredientOrm.find_or_create(name: ingredient_name)
           db_dish.add_ingredient(ingredient) unless db_dish.ingredients.include?(ingredient)
         end
-
-        rebuild_entity(db_dish)
       end
 
       def self.delete(id)
@@ -45,18 +51,22 @@ module MealDecoder
         )
       end
 
+      # def self.calculate_total_calories(ingredients)
+      #   ingredients.sum do |ingredient|
+      #     case ingredient.name.downcase
+      #     when /chicken|beef|pork|fish/ then 250.0
+      #     when /rice|pasta|bread|noodle/ then 130.0
+      #     when /cheese|butter/ then 400.0
+      #     when /vegetable|carrot|broccoli|spinach|lettuce/ then 50.0
+      #     when /oil/ then 900.0
+      #     when /sauce|dressing/ then 100.0
+      #     else 120.0
+      #     end
+      #   end
+      # end
+
       def self.calculate_total_calories(ingredients)
-        ingredients.sum do |ingredient|
-          case ingredient.name.downcase
-          when /chicken|beef|pork|fish/ then 250.0
-          when /rice|pasta|bread|noodle/ then 130.0
-          when /cheese|butter/ then 400.0
-          when /vegetable|carrot|broccoli|spinach|lettuce/ then 50.0
-          when /oil/ then 900.0
-          when /sauce|dressing/ then 100.0
-          else 120.0
-          end
-        end
+        MealDecoder::Lib::NutritionCalculator.calculate_calories_for_ingredients(ingredients.map(&:name))
       end
     end
   end
