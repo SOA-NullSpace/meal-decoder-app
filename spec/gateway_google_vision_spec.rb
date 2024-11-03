@@ -9,7 +9,11 @@ describe 'Integration Tests of Google Vision API Gateway' do
   DatabaseHelper.wipe_database
 
   before do
-    VcrHelper.configure_vcr_for_apis(CONFIG)
+    @config = OpenStruct.new(
+      OPENAI_API_KEY: OPENAI_API_KEY,
+      GOOGLE_CLOUD_API_TOKEN: GOOGLE_CLOUD_API_TOKEN
+    )
+    VcrHelper.configure_vcr_for_apis(@config)
     @api = MealDecoder::Gateways::GoogleVisionAPI.new(GOOGLE_CLOUD_API_TOKEN)
     @results = YAML.safe_load_file('spec/fixtures/google_vision_results.yml')
   end
@@ -20,7 +24,7 @@ describe 'Integration Tests of Google Vision API Gateway' do
 
   describe 'Text Detection' do
     it 'HAPPY: should detect Chinese menu text correctly' do
-      VCR.use_cassette('google_vision_text_menu') do
+      VCR.use_cassette('google_vision_text_menu', record: :new_episodes) do
         image_path = File.join(__dir__, 'fixtures', 'text_menu_img.jpeg')
         result = @api.detect_text(image_path)
 
@@ -36,7 +40,7 @@ describe 'Integration Tests of Google Vision API Gateway' do
     end
 
     it 'HAPPY: should handle images without text' do
-      VCR.use_cassette('google_vision_blank') do
+      VCR.use_cassette('google_vision_blank', record: :new_episodes) do
         image_path = File.join(__dir__, 'fixtures', 'blank_img.jpg')
         result = @api.detect_text(image_path)
 
@@ -54,7 +58,7 @@ describe 'Integration Tests of Google Vision API Gateway' do
 
   describe 'API Error Handling' do
     it 'SAD: should handle invalid credentials properly' do
-      VCR.use_cassette('google_vision_unauthorized') do
+      VCR.use_cassette('google_vision_unauthorized', record: :new_episodes) do
         unauthorized_api = MealDecoder::Gateways::GoogleVisionAPI.new('BAD_TOKEN')
 
         error = _(proc do
@@ -68,8 +72,7 @@ describe 'Integration Tests of Google Vision API Gateway' do
     end
 
     it 'SAD: should handle malformed requests properly' do
-      VCR.use_cassette('google_vision_bad_request') do
-        # Create a zero-byte temp file to simulate invalid image
+      VCR.use_cassette('google_vision_bad_request', record: :new_episodes) do
         Tempfile.create(['bad_image', '.jpg']) do |temp_file|
           error = _(proc do
             @api.detect_text(temp_file.path)

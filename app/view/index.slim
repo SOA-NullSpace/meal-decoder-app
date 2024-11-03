@@ -34,10 +34,10 @@ html
           label for="dish_name" Enter the name of a dish:
           input#dish_name.form-control type="text" name="dish_name" placeholder="E.g., Tomato Soup"
           small.form-text.text-muted Only letters and spaces are allowed.
-        button.btn.btn-primary.btn-block type="submit" Fetch Ingredients
+        button.btn.btn-primary.btn-block type="submit" Decode Ingredients
 
       form action="/detect_text" method="post" enctype="multipart/form-data"
         .form-group
           label for="image_file" Upload an image to decode text:
           input#image_file.form-control type="file" name="image_file" accept="image/*"
-        button.btn.btn-secondary.btn-block type="submit" Decode Image
+        button.btn.btn-secondary.btn-block type="submit" Decode Menu Image

@@ -18,17 +18,17 @@ module MealDecoder
     plugin :all_verbs
     plugin :request_headers
 
-    route do |r|
-      r.public # Serve static files
+    route do |request|
+      request.public # Serve static files
 
       # GET /
-      r.root do
+      request.root do
         view 'index', locals: { error: nil }
       end
 
       # POST /fetch_dish
-      r.post 'fetch_dish' do
-        dish_name = r.params['dish_name'].strip
+      request.post 'fetch_dish' do
+        dish_name = request.params['dish_name'].strip
 
         if dish_name.match?(/\A[\p{L}\s]+\z/u)
           begin
@@ -48,36 +48,36 @@ module MealDecoder
             end
 
             if dish && dish.ingredients.any?
-              r.redirect "/display_dish?name=#{CGI.escape(dish_name)}"
+              request.redirect "/display_dish?name=#{CGI.escape(dish_name)}"
             else
-              r.redirect "/?error=#{CGI.escape('No ingredients found for this dish.')}"
+              request.redirect "/?error=#{CGI.escape('No ingredients found for this dish.')}"
             end
-          rescue StandardError => e
-            r.redirect "/?error=#{CGI.escape(e.message)}"
+          rescue StandardError => error
+            request.redirect "/?error=#{CGI.escape(error.message)}"
           end
         else
-          r.redirect "/?error=#{CGI.escape('Invalid dish name. Please enter a valid name (letters and spaces only).')}"
+          request.redirect "/?error=#{CGI.escape('Invalid dish name. Please enter a valid name (letters and spaces only).')}"
         end
       end
 
       # GET /display_dish
-      r.get 'display_dish' do
-        dish_name = r.params['name']
+      request.get 'display_dish' do
+        dish_name = request.params['name']
         if dish_name
           dish = Repository::For.klass(Entity::Dish).find_name(dish_name)
           if dish
             view 'display_dish', locals: { dish: dish }
           else
-            r.redirect "/?error=#{CGI.escape('Dish not found.')}"
+            request.redirect "/?error=#{CGI.escape('Dish not found.')}"
           end
         else
-          r.redirect '/'
+          request.redirect '/'
         end
       end
 
       # POST /detect_text
-      r.post 'detect_text' do
-        file = r.params['image_file'][:tempfile]
+      request.post 'detect_text' do
+        file = request.params['image_file'][:tempfile]
         file_path = file.path
 
         if file
@@ -87,7 +87,7 @@ module MealDecoder
 
           view 'display_text', locals: { text: text_result }
         else
-          r.redirect "/?error=#{CGI.escape('No file uploaded. Please upload an image file.')}"
+          request.redirect "/?error=#{CGI.escape('No file uploaded. Please upload an image file.')}"
         end
       end
     end
