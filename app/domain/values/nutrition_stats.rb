@@ -5,6 +5,8 @@ require_relative 'types'
 
 module MealDecoder
   module Value
+    # Contains aggregated nutritional statistics for a dish, 
+    #including total calories and average calories per ingredient.
     class NutritionStats < Dry::Struct
       include Types
       

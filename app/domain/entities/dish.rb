@@ -14,7 +14,7 @@ module MealDecoder
       attribute :id, Types::Integer.optional
       attribute :name, Types::Strict::String
       attribute :ingredients, Types::Array.of(Types::Strict::String)
-      
+
       def total_calories
         ingredients.sum { |ingredient| get_calories(ingredient) } / 2  # Divide by 2 to get more realistic portion size
       end

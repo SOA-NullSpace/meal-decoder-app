@@ -39,7 +39,7 @@ module MealDecoder
         puts "=== End DishMapper.find ===\n"
 
         dish
-      rescue StandardError => e
+      rescue StandardError => error
         puts "ERROR in DishMapper: #{e.class} - #{e.message}"
         puts "Backtrace:\n#{e.backtrace.join("\n")}"
         raise

@@ -9,15 +9,10 @@ module MealDecoder
   # Configuration for the App
   class App < Roda
     plugin :environments
-
-    # Setup base configuration
-    # CONFIG = YAML.safe_load_file(File.join(__dir__, 'secrets.yml'), aliases: true)
-    # OPENAI_API_KEY = CONFIG['OPENAI_API_KEY']
-    # GOOGLE_CLOUD_API_TOKEN = CONFIG['GOOGLE_CLOUD_API_TOKEN']
-
+    env = ENV['RACK_ENV'] || 'development'
     # Environment variables setup using Figaro
     Figaro.application = Figaro::Application.new(
-      environment: ENV['RACK_ENV'] || 'development',
+      environment: env,
       path: File.expand_path('config/secrets.yml')
     )
     Figaro.load
@@ -43,10 +38,10 @@ module MealDecoder
     # Load all application files
     def self.setup_application!
       Sequel.extension :migration
-      db.extension :freeze_datasets if ENV['RACK_ENV'] == 'production'
+      db.extension :freeze_datasets if env == 'production'
 
       # Run migrations if in development/test
-      if %w[development test].include?(ENV['RACK_ENV'])
+      if %w[development test].include?(env)
         Sequel::Migrator.run(db, 'db/migrations') if db.tables.empty?
       end
     end

@@ -32,23 +32,16 @@ module MealDecoder
         Database::DishOrm.where(id:).delete
       end
 
-      # def self.rebuild_entity(db_record)
-      #   return nil unless db_record
-
-      #   Entity::Dish.new(
-      #     id: db_record.id,
-      #     name: db_record.name,
-      #     ingredients: db_record.ingredients.map(&:name)
-      #   )
-      # end
       def self.rebuild_entity(db_record)
         return nil unless db_record
+        ingredients = db_record.ingredients
+        total_calories = calculate_total_calories(ingredients)
 
         Entity::Dish.new(
           id: db_record.id,
           name: db_record.name,
-          ingredients: db_record.ingredients.map(&:name),
-          total_calories: calculate_total_calories(db_record.ingredients)
+          ingredients: ingredients.map(&:name),
+          total_calories: total_calories
         )
       end
 
