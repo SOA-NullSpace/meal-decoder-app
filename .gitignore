@@ -9,3 +9,4 @@ spec/fixtures/*
 coverage/*
 !coverage/.resultset.json
 *.db
+.bundle/

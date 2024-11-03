@@ -31,6 +31,10 @@ group :development, :test do
   gem 'sqlite3', '~> 1.0'
 end
 
+group :production do
+  gem 'pg'
+end
+
 # Testing
 group :test do
   gem 'minitest', '5.25'
