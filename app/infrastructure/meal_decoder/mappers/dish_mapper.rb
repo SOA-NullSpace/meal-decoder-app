@@ -6,6 +6,9 @@ require_relative '../../../domain/lib/nutrition_calculator'
 
 module MealDecoder
   module Mappers
+    # DishMapper is responsible for mapping data retrieved via the OpenAI API
+    # into a structured Dish entity. It fetches ingredients data, parses it,
+    # and assembles a Dish entity with these ingredients.
     class DishMapper
       def initialize(openai_gateway)
         @openai_gateway = openai_gateway

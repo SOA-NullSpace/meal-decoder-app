@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative '../orm/dish_orm'
+require_relative '../../../domain/lib/nutrition_calculator'
 
 module MealDecoder
   module Repository
@@ -18,11 +19,6 @@ module MealDecoder
         return nil unless entity
 
         db_dish = Database::DishOrm.find_or_create(name: entity.name)
-        # Handle ingredients
-        # entity.ingredients.each do |ingredient_name|
-        #   ingredient = Database::IngredientOrm.find_or_create(name: ingredient_name)
-        #   db_dish.add_ingredient(ingredient) unless db_dish.ingredients.include?(ingredient)
-        # end
         handle_ingredients(db_dish, entity.ingredients)
         rebuild_entity(db_dish)
       end
@@ -40,8 +36,9 @@ module MealDecoder
 
       def self.rebuild_entity(db_record)
         return nil unless db_record
+
         ingredients = db_record.ingredients
-        total_calories = calculate_total_calories(ingredients)
+        total_calories = calculate_calories(ingredients)
 
         Entity::Dish.new(
           id: db_record.id,
@@ -51,18 +48,10 @@ module MealDecoder
         )
       end
 
-      def self.calculate_total_calories(ingredients)
-        ingredients.sum do |ingredient|
-          case ingredient.name.downcase
-          when /chicken|beef|pork|fish/ then 250.0
-          when /rice|pasta|bread|noodle/ then 130.0
-          when /cheese|butter/ then 400.0
-          when /vegetable|carrot|broccoli|spinach|lettuce/ then 50.0
-          when /oil/ then 900.0
-          when /sauce|dressing/ then 100.0
-          else 120.0
-          end
-        end
+      private
+
+      def self.calculate_calories(ingredients)
+        ingredients.sum { |ingredient| Lib::NutritionCalculator.get_calories(ingredient.name) }
       end
     end
   end
