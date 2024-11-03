@@ -5,7 +5,7 @@ html
     link rel="stylesheet" href="/assets/css/style.css"
   body
     .container.mt-5
-      h1.text-center.mb-4 Text Detected
+      h1.text-center.mb-4 Menu Decoded
       - if text.empty?
         p.alert.alert-warning No text found in the image.
       - else
@@ -19,5 +19,5 @@ html
                     label.form-check-label for="text_#{index}"
                       = line.strip
           .text-center.mt-4
-            button.btn.btn-primary.mx-2 type="submit" Search Ingredients
-            a.btn.btn-secondary href="/" Cancel
+            a.btn.btn-secondary href="/" Back
+            button.btn.btn-primary.mx-2 type="submit" Decode Ingredients
