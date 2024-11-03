@@ -23,7 +23,7 @@ html
                 - dish.ingredients.each do |ingredient|
                   li.list-group-item
                     = ingredient
-                    span.float-right.text-muted = "#{dish.get_calories(ingredient)} cal"
+                    span.float-right.text-muted = "#{MealDecoder::Lib::NutritionCalculator.get_calories(ingredient)} cal"
 
             .nutrition-summary.mt-4
               h3.h5.mb-3 Nutritional Information

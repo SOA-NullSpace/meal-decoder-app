@@ -9,13 +9,23 @@ module MealDecoder
 
       # Map ingredient names to their calorie values
       CALORIE_VALUES = {
-        'beef' => 250, 'steak' => 250, 'ground beef' => 250,
-        'chicken' => 165, 'poultry' => 165,
-        'pork' => 300, 'ham' => 300, 'bacon' => 300,
-        'fish' => 200, 'salmon' => 200, 'tuna' => 200,
-        # More mappings as defined previously...
+        'beef' => 250,
+        'chicken' => 165,
+        'pork' => 300,
+        'fish' => 200,
+        'seafood' => 100,
+        'egg' => 155,
+        'dairy' => 300,
+        'oil' => 120,
+        'bread' => 265,
+        'noodle' => 200,
+        'rice' => 130,
+        'vegetable' => 30,
+        'fruit' => 50,
+        'sauce' => 30,
+        'spice' => 0,
         'default' => 50
-      }
+      }.freeze
 
       def self.calculate_dish_calories(dish_ingredients)
         return nil if dish_ingredients.empty?

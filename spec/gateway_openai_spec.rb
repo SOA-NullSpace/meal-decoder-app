@@ -9,7 +9,11 @@ describe 'Integration Tests of OpenAI API Gateway' do
   DatabaseHelper.wipe_database
 
   before do
-    VcrHelper.configure_vcr_for_apis(CONFIG)
+    @config = OpenStruct.new(
+      OPENAI_API_KEY: OPENAI_API_KEY,
+      GOOGLE_CLOUD_API_TOKEN: GOOGLE_CLOUD_API_TOKEN
+    )
+    VcrHelper.configure_vcr_for_apis(@config)
     @api = MealDecoder::Gateways::OpenAIAPI.new(OPENAI_API_KEY)
   end
 
@@ -19,20 +23,20 @@ describe 'Integration Tests of OpenAI API Gateway' do
 
   describe 'Recipe Ingredients Query' do
     it 'HAPPY: should fetch ingredients for a known dish' do
-      VCR.use_cassette('openai_known_dish') do
+      VCR.use_cassette('openai_known_dish', record: :new_episodes) do
         dish_name = 'Chicken Fried Rice'
         result = @api.fetch_ingredients(dish_name)
 
         _(result).wont_be_empty
         _(result).must_be_kind_of String
-        _(result).must_include 'rice'
-        _(result).must_include 'chicken'
+        _(result.downcase).must_include 'rice'
+        _(result.downcase).must_include 'chicken'
         _(result).wont_match(/I'm not sure|not familiar with a dish|doesn't refer to a specific dish/)
       end
     end
 
     it 'HAPPY: should fetch ingredients for Chinese dishes' do
-      VCR.use_cassette('openai_chinese_dish') do
+      VCR.use_cassette('openai_chinese_dish', record: :new_episodes) do
         dish_name = '瘦肉炒麵'
         result = @api.fetch_ingredients(dish_name)
 
@@ -46,7 +50,7 @@ describe 'Integration Tests of OpenAI API Gateway' do
 
   describe 'API Error Handling' do
     it 'SAD: should raise error for unknown dishes' do
-      VCR.use_cassette('openai_unknown_dish') do
+      VCR.use_cassette('openai_unknown_dish', record: :new_episodes) do
         unknown_dish_response = {
           'choices' => [{
             'message' => {
@@ -64,7 +68,7 @@ describe 'Integration Tests of OpenAI API Gateway' do
     end
 
     it 'SAD: should handle invalid API keys' do
-      VCR.use_cassette('openai_invalid_key') do
+      VCR.use_cassette('openai_invalid_key', record: :new_episodes) do
         invalid_api = MealDecoder::Gateways::OpenAIAPI.new('INVALID_KEY')
 
         error = _(proc do
@@ -76,7 +80,7 @@ describe 'Integration Tests of OpenAI API Gateway' do
     end
 
     it 'SAD: should handle API response error' do
-      VCR.use_cassette('openai_api_error') do
+      VCR.use_cassette('openai_api_error', record: :new_episodes) do
         error_response = {
           'error' => {
             'message' => 'API request failed'

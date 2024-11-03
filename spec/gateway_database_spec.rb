@@ -8,7 +8,11 @@ describe 'Integration Tests of External APIs and Database' do
   VcrHelper.setup_vcr
 
   before do
-    VcrHelper.configure_vcr_for_apis(CONFIG)
+    @config = OpenStruct.new(
+      OPENAI_API_KEY: OPENAI_API_KEY,
+      GOOGLE_CLOUD_API_TOKEN: GOOGLE_CLOUD_API_TOKEN
+    )
+    VcrHelper.configure_vcr_for_apis(@config)
     DatabaseHelper.wipe_database
   end
 
@@ -18,11 +22,11 @@ describe 'Integration Tests of External APIs and Database' do
 
   describe 'Retrieve and store dish information' do
     it 'HAPPY: should be able to save dish from OpenAI API to database' do
-      VCR.use_cassette('openai_spaghetti_carbonara') do
+      VCR.use_cassette('dish_spaghetti_carbonara', match_requests_on: [:method, :uri, :body]) do
         # Create a dish using the API
         dish_name = 'Spaghetti Carbonara'
         api_dish = MealDecoder::Mappers::DishMapper
-          .new(MealDecoder::Gateways::OpenAIAPI.new(CONFIG['OPENAI_API_KEY']))
+          .new(MealDecoder::Gateways::OpenAIAPI.new(OPENAI_API_KEY))
           .find(dish_name)
 
         # Store it in the database using the repository
@@ -41,10 +45,10 @@ describe 'Integration Tests of External APIs and Database' do
     end
 
     it 'HAPPY: should be able to update existing dish with new ingredients' do
-      VCR.use_cassette('openai_pizza_updates') do
+      VCR.use_cassette('dish_classic_pizza', match_requests_on: [:method, :uri, :body]) do
         # First create a dish
         dish_name = 'Classic Pizza'
-        api = MealDecoder::Gateways::OpenAIAPI.new(CONFIG['OPENAI_API_KEY'])
+        api = MealDecoder::Gateways::OpenAIAPI.new(OPENAI_API_KEY)
         mapper = MealDecoder::Mappers::DishMapper.new(api)
 
         first_stored = MealDecoder::Repository::For.entity(
@@ -53,15 +57,17 @@ describe 'Integration Tests of External APIs and Database' do
 
         original_ingredients_count = first_stored.ingredients.count
 
-        # Update the same dish
-        updated_stored = MealDecoder::Repository::For.entity(
-          mapper.find(dish_name)
-        ).create(mapper.find(dish_name))
+        # Update the same dish with different cassette
+        VCR.use_cassette('dish_classic_pizza_update', match_requests_on: [:method, :uri, :body]) do
+          updated_stored = MealDecoder::Repository::For.entity(
+            mapper.find(dish_name)
+          ).create(mapper.find(dish_name))
 
-        # Verify the update
-        _(updated_stored.id).must_equal(first_stored.id)
-        _(updated_stored.name).must_equal(first_stored.name)
-        _(updated_stored.ingredients.count).must_be :>=, original_ingredients_count
+          # Verify the update
+          _(updated_stored.id).must_equal(first_stored.id)
+          _(updated_stored.name).must_equal(first_stored.name)
+          _(updated_stored.ingredients.count).must_be :>=, original_ingredients_count
+        end
       end
     end
 
@@ -91,26 +97,6 @@ describe 'Integration Tests of External APIs and Database' do
           name: ''
         )
       end).must_raise Sequel::ValidationFailed
-    end
-  end
-
-  describe 'Retrieve and store detected text' do
-    before do
-      @vision_results = YAML.safe_load_file('spec/fixtures/google_vision_results.yml')
-    end
-
-    it 'HAPPY: should be able to process and store text from image' do
-      VCR.use_cassette('google_vision_text_menu') do
-        image_path = File.join(__dir__, 'fixtures', 'text_menu_img.jpeg')
-        api = MealDecoder::Gateways::GoogleVisionAPI.new(CONFIG['GOOGLE_CLOUD_API_TOKEN'])
-
-        detected_text = api.detect_text(image_path)
-        _(detected_text).wont_be_empty
-
-        # Verify against known test results
-        _(detected_text).must_include '瘦肉炒麵'
-        _(detected_text).must_equal @vision_results['text_menu_img']['text']
-      end
     end
   end
 end

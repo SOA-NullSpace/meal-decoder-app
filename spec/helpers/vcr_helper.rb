@@ -10,16 +10,16 @@ module VcrHelper
   VISION_CASSETTE = 'google_vision_api'
 
   def self.setup_vcr
-    VCR.configure do |config|
-      config.cassette_library_dir = CASSETTES_FOLDER
-      config.hook_into :webmock
+    VCR.configure do |con|
+      con.cassette_library_dir = CASSETTES_FOLDER
+      con.hook_into :webmock
     end
   end
 
   def self.configure_vcr_for_apis(config)
-    VCR.configure do |config|
-      config.filter_sensitive_data('<OPENAI_API_KEY>') { config['OPENAI_API_KEY'] }
-      config.filter_sensitive_data('<GOOGLE_CLOUD_API_TOKEN>') { config['GOOGLE_CLOUD_API_TOKEN'] }
+    VCR.configure do |con|
+      con.filter_sensitive_data('<OPENAI_API_KEY>') { config['OPENAI_API_KEY'] }
+      con.filter_sensitive_data('<GOOGLE_CLOUD_API_TOKEN>') { config['GOOGLE_CLOUD_API_TOKEN'] }
     end
   end
 

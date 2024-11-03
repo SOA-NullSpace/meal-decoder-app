@@ -51,22 +51,18 @@ module MealDecoder
         )
       end
 
-      # def self.calculate_total_calories(ingredients)
-      #   ingredients.sum do |ingredient|
-      #     case ingredient.name.downcase
-      #     when /chicken|beef|pork|fish/ then 250.0
-      #     when /rice|pasta|bread|noodle/ then 130.0
-      #     when /cheese|butter/ then 400.0
-      #     when /vegetable|carrot|broccoli|spinach|lettuce/ then 50.0
-      #     when /oil/ then 900.0
-      #     when /sauce|dressing/ then 100.0
-      #     else 120.0
-      #     end
-      #   end
-      # end
-
       def self.calculate_total_calories(ingredients)
-        MealDecoder::Lib::NutritionCalculator.calculate_calories_for_ingredients(ingredients.map(&:name))
+        ingredients.sum do |ingredient|
+          case ingredient.name.downcase
+          when /chicken|beef|pork|fish/ then 250.0
+          when /rice|pasta|bread|noodle/ then 130.0
+          when /cheese|butter/ then 400.0
+          when /vegetable|carrot|broccoli|spinach|lettuce/ then 50.0
+          when /oil/ then 900.0
+          when /sauce|dressing/ then 100.0
+          else 120.0
+          end
+        end
       end
     end
   end
