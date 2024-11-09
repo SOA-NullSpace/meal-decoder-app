@@ -1,0 +1,44 @@
+div.container.mt-5
+  header.mb-4
+    .d-flex.align-items-center.justify-content-between
+      h1.mb-0 Meal Decoder
+      - if dishes.any?
+        span.text-muted = "#{dishes.count} dishes decoded"
+
+  section.search-section.mb-5
+    .card
+      .card-body
+        h2.h4.mb-4 Search for a Dish
+        form action="/fetch_dish" method="post" enctype="multipart/form-data"
+          .form-group
+            label.font-weight-bold for="dish_name" Enter the name of a dish:
+            input#dish_name.form-control type="text" name="dish_name" placeholder="E.g., Tomato Soup"
+            small.form-text.text-muted Only letters and spaces are allowed.
+          button.btn.btn-primary.btn-block type="submit" Decode Ingredients
+
+  section.image-upload-section.mb-5
+    .card
+      .card-body
+        h2.h4.mb-4 Menu Image Processing
+        form action="/detect_text" method="post" enctype="multipart/form-data"
+          .form-group
+            label.font-weight-bold for="image_file" Upload a menu image:
+            input#image_file.form-control type="file" name="image_file" accept="image/*"
+            small.form-text.text-muted Supported formats: JPG, PNG, GIF
+          button.btn.btn-secondary.btn-block type="submit" Decode Menu Image
+
+  - if dishes.any?
+    section.history-section
+      .card
+        .card-header.bg-light
+          h2.h4.mb-0 Recent Searches
+        .card-body
+          ul.list-group.list-group-flush
+            - dishes.each do |dish|
+              li.list-group-item.d-flex.justify-content-between.align-items-center
+                a.text-decoration-none href="/display_dish?name=#{CGI.escape(dish.name)}" 
+                  = dish.name
+                  span.badge.badge-pill class="badge-#{dish.calorie_class}" = dish.calorie_level
+                form.ml-2 method="post" action="/dish/#{CGI.escape(dish.name)}" style="display: inline"
+                  input type="hidden" name="_method" value="delete"
+                  button.btn.btn-sm.btn-outline-danger type="submit" title="Remove from history" × Remove
