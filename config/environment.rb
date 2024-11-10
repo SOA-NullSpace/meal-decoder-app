@@ -4,10 +4,12 @@ require 'figaro'
 require 'roda'
 require 'sequel'
 require 'yaml'
+require 'rack/session'
 
 module MealDecoder
   # Configuration for the App
   class App < Roda
+    # use Rack::Session::Cookie, secret: config.SESSION_SECRET
     plugin :environments
     env = ENV['RACK_ENV'] || 'development'
     # Environment variables setup using Figaro
@@ -27,6 +29,11 @@ module MealDecoder
       ENV['DATABASE_URL'] = "sqlite://#{db_path}"
     end
 
+    use Rack::Session::Cookie,
+        secret: config.SESSION_SECRET,
+        key: 'meal_decoder.session',
+        expire_after: 2_592_000 # 30 days in seconds
+
     configure :production do
       # Use DATABASE_URL from environment
     end
@@ -41,9 +48,9 @@ module MealDecoder
       db.extension :freeze_datasets if env == 'production'
 
       # Run migrations if in development/test
-      if %w[development test].include?(env)
-        Sequel::Migrator.run(db, 'db/migrations') if db.tables.empty?
-      end
+      return unless %w[development test].include?(env)
+
+      Sequel::Migrator.run(db, 'db/migrations') if db.tables.empty?
     end
   end
 end

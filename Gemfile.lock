@@ -97,7 +97,9 @@ GEM
     puma (6.4.0)
       nio4r (~> 2.0)
     racc (1.8.1)
-    rack (3.1.8)
+    rack (3.1.0)
+    rack-session (2.0.0)
+      rack (>= 3.0.0)
     rainbow (3.1.1)
     rake (13.2.0)
     rb-fsevent (0.11.2)
@@ -149,7 +151,7 @@ GEM
     slim (5.2.0)
       temple (~> 0.10.0)
       tilt (>= 2.1.0)
-    sqlite3 (1.7.3)
+    sqlite3 (1.7.0)
       mini_portile2 (~> 2.8.0)
     sqlite3 (1.7.3-x86_64-darwin)
     sqlite3 (1.7.3-x86_64-linux)
@@ -184,6 +186,8 @@ DEPENDENCIES
   pg
   pry
   puma (= 6.4)
+  rack (= 3.1)
+  rack-session
   rake (= 13.2)
   reek
   rerun
@@ -195,7 +199,7 @@ DEPENDENCIES
   sequel (= 5.85)
   simplecov (= 0.22.0)
   slim (= 5.2)
-  sqlite3 (~> 1.0)
+  sqlite3 (= 1.7)
   vcr (= 6.3)
   webmock (= 3.24)
 
