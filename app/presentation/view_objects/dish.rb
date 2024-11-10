@@ -1,6 +1,8 @@
-# app/presentation/view_objects/dish.rb
 module MealDecoder
   module Views
+    # View object that encapsulates presentation logic for a dish entity
+    # Handles conversion of dish data for display, including calorie calculations
+    # and formatting ingredient information
     class Dish
       attr_reader :id, :name
 

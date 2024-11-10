@@ -44,44 +44,99 @@ module MealDecoder
 
     # Helper method to process dish and update search history
     def self.process_dish_request(routing, dish_name, messages)
-      unless dish_name.match?(/\A[\p{L}\s]+\z/u)
-        return { error: messages[:invalid_name] }
+      return handle_invalid_dish_name(messages) unless valid_dish_name?(dish_name)
+
+      process_valid_dish_request(routing, dish_name, messages)
+    rescue StandardError => error
+      handle_db_error(error, messages)
+    end
+
+    def self.process_valid_dish_request(routing, dish_name, messages)
+      dish = find_or_create_dish(dish_name)
+      return handle_api_error_response(messages) unless dish
+
+      process_dish_with_ingredients(routing, dish, messages)
+    end
+
+    def self.process_dish_with_ingredients(routing, dish, messages)
+      if dish.ingredients.any?
+        add_to_search_history(routing, dish.name)
+        { success: messages[:success_created], dish: dish }
+      else
+        handle_no_ingredients(messages)
       end
+    end
 
-      begin
-        dish = Repository::For.klass(Entity::Dish).find_name(dish_name)
-
-        if dish.nil? || dish.ingredients.empty?
-          begin
-            # Get dish from OpenAI API
-            api_key = App.config.OPENAI_API_KEY
-            api = Gateways::OpenAIAPI.new(api_key)
-            mapper = Mappers::DishMapper.new(api)
-            api_dish = mapper.find(dish_name)
-
-            # Clean up old data if exists
-            Repository::For.klass(Entity::Dish).delete(dish.id) if dish&.id
-
-            # Create new dish
-            dish = Repository::For.klass(Entity::Dish).create(api_dish)
-          rescue StandardError => e
-            puts "API ERROR: #{e.message}"
-            return { error: messages[:api_error] }
-          end
-        end
-
-        if dish&.ingredients&.any?
-          # Add to search history
-          routing.session[:searched_dishes] ||= []
-          routing.session[:searched_dishes].insert(0, dish.name).uniq!
-          return { success: messages[:success_created], dish: dish }
-        else
-          return { error: messages[:no_ingredients] }
-        end
-      rescue StandardError => e
-        puts "DB ERROR: #{e.message}"
-        return { error: messages[:db_error] }
+    def self.handle_dish_response(dish, messages)
+      if dish.ingredients.any?
+        { success: messages[:success_created], dish: dish }
+      else
+        handle_no_ingredients(messages)
       end
+    end
+
+    def self.handle_no_ingredients(messages)
+      { error: messages[:no_ingredients] }
+    end
+
+    def self.handle_invalid_dish_name(messages)
+      { error: messages[:invalid_name] }
+    end
+
+    def self.handle_api_error_response(messages)
+      { error: messages[:api_error] }
+    end
+
+    def self.valid_dish_name?(dish_name)
+      dish_name.match?(/\A[\p{L}\s]+\z/u)
+    end
+
+    def self.find_or_create_dish(dish_name)
+      dish = dish_from_repository(dish_name)
+      return dish if dish && dish.ingredients.any?
+
+      create_dish_from_api(dish_name)
+    end
+
+    def self.dish_from_repository(dish_name)
+      Repository::For.klass(Entity::Dish).find_name(dish_name)
+    end
+
+    def self.create_dish_from_api(dish_name)
+      api_key = App.config.OPENAI_API_KEY
+      api_dish = fetch_dish_from_api(dish_name, api_key)
+      return unless api_dish
+
+      delete_existing_dish(dish_name)
+      Repository::For.klass(Entity::Dish).create(api_dish)
+    end
+
+    def self.fetch_dish_from_api(dish_name, api_key)
+      api = Gateways::OpenAIAPI.new(api_key)
+      mapper = Mappers::DishMapper.new(api)
+      mapper.find(dish_name)
+    rescue StandardError => error
+      handle_api_error(error)
+    end
+
+    def self.handle_api_error(error)
+      puts "API ERROR: #{error.message}"
+      nil
+    end
+
+    def self.delete_existing_dish(dish_name)
+      dish = dish_from_repository(dish_name)
+      Repository::For.klass(Entity::Dish).delete(dish.id) if dish&.id
+    end
+
+    def self.add_to_search_history(routing, dish_name)
+      searched_dishes = routing.session[:searched_dishes] ||= []
+      searched_dishes.insert(0, dish_name).uniq!
+    end
+
+    def self.handle_db_error(error, messages)
+      puts "DB ERROR: #{error.message}"
+      { error: messages[:db_error] }
     end
 
     route do |routing|
@@ -96,7 +151,7 @@ module MealDecoder
         begin
           # Load dishes from session history
           dishes = session[:searched_dishes].map do |dish_name|
-            Repository::For.klass(Entity::Dish).find_name(dish_name)
+            self.class.dish_from_repository(dish_name)
           end.compact
 
           # Update session with valid dishes only
@@ -106,8 +161,8 @@ module MealDecoder
             title_suffix: 'Home',
             dishes: Views::DishesList.new(dishes)
           }
-        rescue StandardError => e
-          puts "DB ERROR: #{e.message}"
+        rescue StandardError => db_error
+          puts "DB ERROR: #{db_error.message}"
           flash.now[:error] = MESSAGES[:db_error]
           view 'home', locals: {
             title_suffix: 'Home',
@@ -143,11 +198,11 @@ module MealDecoder
           end
 
           begin
-            dish = Repository::For.klass(Entity::Dish).find_name(dish_name)
+            dish = self.class.dish_from_repository(dish_name)
 
             if dish
               # Ensure dish is in search history
-              session[:searched_dishes].insert(0, dish.name).uniq!
+              self.class.add_to_search_history(routing, dish.name)
               view 'dish', locals: {
                 title_suffix: dish.name,
                 dish: Views::Dish.new(dish)
@@ -156,8 +211,8 @@ module MealDecoder
               flash[:error] = MESSAGES[:dish_not_found]
               routing.redirect '/'
             end
-          rescue StandardError => e
-            puts "DISH DISPLAY ERROR: #{e.message}"
+          rescue StandardError => db_error
+            puts "DISH DISPLAY ERROR: #{db_error.message}"
             flash[:error] = MESSAGES[:db_error]
             routing.redirect '/'
           end
@@ -182,8 +237,8 @@ module MealDecoder
               title_suffix: 'Text Detection',
               text: Views::TextDetection.new(text_result)
             }
-          rescue StandardError => e
-            puts "VISION API ERROR: #{e.message}"
+          rescue StandardError => vision_error
+            puts "VISION API ERROR: #{vision_error.message}"
             flash[:error] = MESSAGES[:text_detection_error]
             routing.redirect '/'
           end
