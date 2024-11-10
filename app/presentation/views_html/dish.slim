@@ -8,13 +8,13 @@ div.container.mt-5
 
   - if !dish.has_ingredients?
     .alert.alert-warning
-      i.fas.fa-exclamation-triangle.mr-2
+      i.fa-solid.fa-exclamation-triangle.mr-2
       | No ingredients found for this dish.
   - else
     .card.mb-4
       .card-header.bg-light
         h2.h4.mb-0
-          i.fas.fa-list-ul.mr-2
+          i.fa-solid.fa-list-ul.mr-2
           = "Ingredients (#{dish.ingredients_count})"
       .card-body
         .ingredients-list
@@ -26,7 +26,7 @@ div.container.mt-5
 
         .nutrition-summary.mt-4
           h3.h5.mb-3 
-            i.fas.fa-chart-pie.mr-2
+            i.fa-solid.fa-chart-pie.mr-2
             | Nutritional Information
           p.mb-0
             strong Total Calories: 
@@ -37,9 +37,9 @@ div.container.mt-5
 
   .text-center.mt-4
     a.btn.btn-outline-primary.mr-2 href="/" 
-      i.fas.fa-arrow-left.mr-2
+      i.fa-solid.fa-arrow-left.mr-2
       | Back to Search
     - if dish.has_ingredients?
       button.btn.btn-success onclick="window.print()"
-        i.fas.fa-print.mr-2
+        i.fa-solid.fa-print.mr-2
         | Print Recipe

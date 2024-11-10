@@ -7,13 +7,13 @@ div.container.mt-5
 
   - if text.empty?
     .alert.alert-warning.text-center
-      i.fas.fa-exclamation-triangle.mr-2
+      i.fa-solid.fa-exclamation-triangle.mr-2
       | No dish found in the image.
   - else
     .card
       .card-header.bg-light
         h2.h4.mb-0
-          i.fas.fa-align-left.mr-2
+          i.fa-solid.fa-align-left.mr-2
           = "Detected Dish names (#{text.line_count})"
       .card-body
         form.detected-text-form action="/fetch_dish" method="post"
@@ -33,8 +33,8 @@ div.container.mt-5
 
           .text-center.mt-4
             a.btn.btn-outline-secondary.mr-2 href="/"
-              i.fas.fa-arrow-left.mr-2
+              i.fa-solid.fa-arrow-left.mr-2
               | Back
             button.btn.btn-primary type="submit"
-              i.fas.fa-search.mr-2
-              | Decode Selected Dish
+              i.fa-solid.fa-search.mr-2
+              | Decode Ingredients

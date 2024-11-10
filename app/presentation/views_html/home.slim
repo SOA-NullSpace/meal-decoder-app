@@ -17,7 +17,7 @@ div.container.mt-5
             input#dish_name.form-control type="text" name="dish_name" placeholder="E.g., Tomato Soup" required="true"
             small.form-text.text-muted Only letters and spaces are allowed.
           button.btn.btn-primary.btn-block type="submit"
-            i.fas.fa-search.mr-2
+            i.fa-solid.fa-search.mr-2
             | Decode Ingredients
 
   section.image-upload-section.mb-5
@@ -26,11 +26,15 @@ div.container.mt-5
         h2.h4.mb-4 Decode Menu Image
         form action="/detect_text" method="post" enctype="multipart/form-data"
           .form-group
-            label.font-weight-bold for="image_file" Upload a menu image:
-            input#image_file.form-control type="file" name="image_file" accept="image/*" required="true"
-            small.form-text.text-muted Supported formats: JPG, PNG, GIF
+            label.font-weight-bold.d-block for="image_file" Upload a menu image:
+            .custom-file.mb-3
+              input#image_file.custom-file-input type="file" name="image_file" accept="image/*" required="true"
+              label.custom-file-label.text-muted.overflow-hidden for="image_file" data-browse="Browse"
+                i.fa-solid.fa-upload.mr-2
+                | Choose file...
+            small.form-text.text-muted.mt-2 Supported formats: JPG, PNG, GIF
           button.btn.btn-secondary.btn-block type="submit"
-            i.fas.fa-camera.mr-2
+            i.fa-solid.fa-camera.mr-2
             | Decode Menu Image
 
   - if dishes.any?
@@ -48,5 +52,12 @@ div.container.mt-5
                 form.ml-2 method="post" action="/dish/#{CGI.escape(dish.name)}" style="display: inline"
                   input type="hidden" name="_method" value="delete"
                   button.btn.btn-sm.btn-outline-danger type="submit" title="Remove from history"
-                    i.fas.fa-times.mr-1
+                    i.fa-solid.fa-trash.mr-1
                     | Remove
+
+javascript:
+  document.getElementById('image_file').addEventListener('change', function(e) {
+    var fileName = e.target.files[0] ? e.target.files[0].name : 'Choose file...';
+    var label = e.target.nextElementSibling;
+    label.innerHTML = '<i class="fas fa-upload mr-2"></i>' + fileName;
+  });
