@@ -14,7 +14,12 @@ module MealDecoder
         validates_presence :name
         validates_unique :name
         validates_max_length 100, :name
-        validates_format(/^[\p{L}\s]+$/u, :name, message: 'must contain only letters and spaces')
+        # Updated validation to allow characters from any language
+        validates_format(
+          /\A[\p{L}\p{M}\p{Zs}]+\z/u,
+          :name,
+          message: 'must contain only letters and spaces'
+        )
       end
 
       # Define the relationship between dishes and ingredients

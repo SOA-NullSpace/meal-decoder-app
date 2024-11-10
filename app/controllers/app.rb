@@ -42,9 +42,17 @@ module MealDecoder
       no_file: 'No file uploaded. Please upload an image file.'
     }.freeze
 
-    # Helper method to process dish and update search history
+    def self.valid_dish_name?(dish_name)
+      # Allow any Unicode letter characters and whitespace from any language
+      # \p{L} matches any kind of letter from any language
+      # \p{M} matches a character intended to be combined with another character (e.g., accents, umlauts)
+      # \p{Zs} matches any kind of whitespace or invisible separator
+      return false if dish_name.empty?
+      dish_name.match?(/\A[\p{L}\p{M}\p{Zs}]+\z/u)
+    end
+
     def self.process_dish_request(routing, dish_name, messages)
-      return handle_invalid_dish_name(messages) unless valid_dish_name?(dish_name)
+      return handle_invalid_dish_name(messages) if dish_name.empty?
 
       process_valid_dish_request(routing, dish_name, messages)
     rescue StandardError => error
