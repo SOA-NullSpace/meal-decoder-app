@@ -18,9 +18,9 @@ gem 'http', '5.2'
 gem 'logger', '1.6'
 gem 'puma', '6.4'
 gem 'rack', '3.1'
+gem 'rack-session'
 gem 'roda', '3.85'
 gem 'slim', '5.2'
-gem 'rack-session'
 
 gem 'figaro'
 
