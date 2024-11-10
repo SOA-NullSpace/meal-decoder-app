@@ -254,20 +254,30 @@ module MealDecoder
       # DELETE /dish/{dish_name}
       routing.on 'dish', String do |encoded_dish_name|
         routing.delete do
+          dish_name = CGI.unescape(encoded_dish_name)
+
           begin
-            dish_name = CGI.unescape(encoded_dish_name)
             # Remove from search history
             self.class.remove_from_history(routing, dish_name)
-            # Delete from database if it exists
-            if dish = self.class.dish_from_repository(dish_name)
-              Repository::For.klass(Entity::Dish).delete(dish.id)
+
+            # Try to find and delete the dish from database
+            dish = self.class.dish_from_repository(dish_name)
+            if dish
+              begin
+                Repository::For.klass(Entity::Dish).delete(dish.id)
+              rescue StandardError => e
+                puts "Database delete error: #{e.message}"
+                # Continue execution even if database delete fails
+              end
             end
+
             flash[:success] = MESSAGES[:success_deleted]
           rescue StandardError => e
-            puts "DELETE ERROR: #{e.message}"
+            puts "Delete operation error: #{e.message}"
             flash[:error] = MESSAGES[:db_error]
+          ensure
+            routing.redirect '/'
           end
-          routing.redirect '/'
         end
       end
     end

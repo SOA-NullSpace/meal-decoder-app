@@ -31,7 +31,19 @@ module MealDecoder
       end
 
       def self.delete(id)
-        Database::DishOrm.where(id:).delete
+        return nil unless id
+
+        begin
+          Sequel::Model.db.transaction do
+            # First, delete all associations in the join table
+            Sequel::Model.db[:dishes_ingredients].where(dish_id: id).delete
+            # Then delete the dish
+            Sequel::Model.db[:dishes].where(id: id).delete
+          end
+        rescue Sequel::Error => e
+          puts "Database deletion error: #{e.message}"
+          nil
+        end
       end
 
       def self.rebuild_entity(db_record)

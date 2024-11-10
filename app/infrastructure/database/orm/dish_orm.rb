@@ -27,6 +27,15 @@ module MealDecoder
       def self.find_or_create(dish_info)
         first(name: dish_info[:name]) || create(dish_info)
       end
+
+      # Remove all ingredients associations safely
+      def remove_all_ingredients
+        Sequel::Model.db.transaction do
+          ingredients.each do |ingredient|
+            remove_ingredient(ingredient)
+          end
+        end
+      end
     end
   end
 end
