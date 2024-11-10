@@ -23,6 +23,10 @@ Help users to search for different dishes, view ingredients, check for any foods
 - **Decode Ingredients** for any given **Dish name**.
 - **Decode Menus Image** to text then select which **Dish name**  you want to **Decode ingredients**.
 
+## ER Diagram
+
+![Database Schema](docs/images/DB_ER-diagram.png)
+
 ## Setup
 
 - Copy `config/secrets_example.yml` to `config/secrets.yml` and update token
