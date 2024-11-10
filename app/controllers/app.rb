@@ -88,6 +88,7 @@ module MealDecoder
     end
 
     def self.valid_dish_name?(dish_name)
+      # Modified to accept Chinese characters and other Unicode letters
       dish_name.match?(/\A[\p{L}\s]+\z/u)
     end
 
@@ -132,6 +133,11 @@ module MealDecoder
     def self.add_to_search_history(routing, dish_name)
       searched_dishes = routing.session[:searched_dishes] ||= []
       searched_dishes.insert(0, dish_name).uniq!
+    end
+
+    def self.remove_from_history(routing, dish_name)
+      searched_dishes = routing.session[:searched_dishes] ||= []
+      searched_dishes.delete(dish_name)
     end
 
     def self.handle_db_error(error, messages)
@@ -190,7 +196,7 @@ module MealDecoder
       routing.on 'display_dish' do
         # GET /display_dish
         routing.get do
-          dish_name = routing.params['name']
+          dish_name = CGI.unescape(routing.params['name'].to_s)
 
           unless dish_name
             flash[:error] = MESSAGES[:dish_not_found]
@@ -246,11 +252,21 @@ module MealDecoder
       end
 
       # DELETE /dish/{dish_name}
-      routing.on 'dish', String do |dish_name|
+      routing.on 'dish', String do |encoded_dish_name|
         routing.delete do
-          # Remove from search history
-          session[:searched_dishes].delete(dish_name)
-          flash[:success] = MESSAGES[:success_deleted]
+          begin
+            dish_name = CGI.unescape(encoded_dish_name)
+            # Remove from search history
+            self.class.remove_from_history(routing, dish_name)
+            # Delete from database if it exists
+            if dish = self.class.dish_from_repository(dish_name)
+              Repository::For.klass(Entity::Dish).delete(dish.id)
+            end
+            flash[:success] = MESSAGES[:success_deleted]
+          rescue StandardError => e
+            puts "DELETE ERROR: #{e.message}"
+            flash[:error] = MESSAGES[:db_error]
+          end
           routing.redirect '/'
         end
       end
