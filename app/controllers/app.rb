@@ -1,130 +1,3 @@
-# # frozen_string_literal: true
-
-# require 'roda'
-# require 'slim'
-# require_relative '../infrastructure/meal_decoder/gateways/openai_api'
-# require_relative '../infrastructure/meal_decoder/gateways/google_vision_api'
-# require_relative '../infrastructure/meal_decoder/mappers/dish_mapper'
-# require_relative '../../config/environment'
-
-# module MealDecoder
-#   # Web App
-#   class App < Roda
-#     plugin :environments
-#     plugin :render, engine: 'slim', views: 'app/view'
-#     plugin :public, root: File.join(__dir__, '../view/assets')
-#     plugin :static, ['/assets']
-#     plugin :flash
-#     plugin :all_verbs
-#     plugin :request_headers
-#     plugin :common_logger, $stderr
-
-#     MESSAGES = {
-#       no_dishes: 'Search for a dish to get started',
-#       dish_not_found: 'Could not find that dish',
-#       api_error: 'Having trouble accessing the API',
-#       invalid_name: 'Invalid dish name. Please enter a valid name (letters and spaces only).',
-#       no_ingredients: 'No ingredients found for this dish.'
-#     }.freeze
-
-#     route do |request|
-#       request.public # Serve static files
-
-#       # GET /
-#       request.root do
-#         # Initialize session history if not exists
-#         session[:searched_dishes] ||= []
-
-#         view 'index', locals: {
-#           error: nil,
-#           searched_dishes: session[:searched_dishes]
-#         }
-#       end
-
-#       # POST /fetch_dish
-#       request.post 'fetch_dish' do
-#         dish_name = request.params['dish_name'].strip
-
-#         if dish_name.match?(/\A[\p{L}\s]+\z/u)
-#           begin
-#             dish = Repository::For.klass(Entity::Dish).find_name(dish_name)
-
-#             if dish.nil? || dish.ingredients.empty?
-#               api_key = Figaro.env.openai_api_key
-#               api = Gateways::OpenAIAPI.new(api_key)
-#               mapper = Mappers::DishMapper.new(api)
-#               api_dish = mapper.find(dish_name)
-
-#               Repository::For.klass(Entity::Dish).delete(dish.id) if dish&.id && dish.ingredients.empty?
-
-#               dish = Repository::For.klass(Entity::Dish).create(api_dish)
-#             end
-
-#             if dish && dish.ingredients.any?
-#               # Add to session history
-#               session[:searched_dishes].insert(0, dish_name).uniq!
-#               request.redirect "/display_dish?name=#{CGI.escape(dish_name)}"
-#             else
-#               request.redirect "/?error=#{CGI.escape(MESSAGES[:no_ingredients])}"
-#             end
-#           rescue StandardError => e
-#             request.redirect "/?error=#{CGI.escape(e.message)}"
-#           end
-#         else
-#           request.redirect "/?error=#{CGI.escape(MESSAGES[:invalid_name])}"
-#         end
-#       end
-
-#       # GET /display_dish
-#       request.get 'display_dish' do
-#         dish_name = request.params['name']
-#         if dish_name
-#           dish = Repository::For.klass(Entity::Dish).find_name(dish_name)
-#           if dish
-#             view 'display_dish', locals: {
-#               dish:,
-#               searched_dishes: session[:searched_dishes] || []
-#             }
-#           else
-#             request.redirect "/?error=#{CGI.escape(MESSAGES[:dish_not_found])}"
-#           end
-#         else
-#           request.redirect '/'
-#         end
-#       end
-
-#       # POST /detect_text
-#       request.post 'detect_text' do
-#         file = request.params['image_file'][:tempfile]
-#         file_path = file.path
-
-#         if file
-#           api_key = Figaro.env.google_cloud_api_token
-#           google_vision_api = Gateways::GoogleVisionAPI.new(api_key)
-#           text_result = google_vision_api.detect_text(file_path)
-
-#           view 'display_text', locals: {
-#             text: text_result,
-#             searched_dishes: session[:searched_dishes] || []
-#           }
-#         else
-#           request.redirect "/?error=#{CGI.escape('No file uploaded. Please upload an image file.')}"
-#         end
-#       end
-
-#       # DELETE /dish/{dish_name}
-#       request.on 'dish' do
-#         request.on String do |dish_name|
-#           request.delete do
-#             session[:searched_dishes].delete(dish_name)
-#             request.redirect '/'
-#           end
-#         end
-#       end
-#     end
-#   end
-# end
-
 # frozen_string_literal: true
 
 require 'roda'
@@ -168,6 +41,48 @@ module MealDecoder
       no_file: 'No file uploaded. Please upload an image file.'
     }.freeze
 
+    # Helper method to process dish and update search history
+    def self.process_dish_request(routing, dish_name, messages)
+      unless dish_name.match?(/\A[\p{L}\s]+\z/u)
+        return { error: messages[:invalid_name] }
+      end
+
+      begin
+        dish = Repository::For.klass(Entity::Dish).find_name(dish_name)
+
+        if dish.nil? || dish.ingredients.empty?
+          begin
+            # Get dish from OpenAI API
+            api_key = App.config.OPENAI_API_KEY
+            api = Gateways::OpenAIAPI.new(api_key)
+            mapper = Mappers::DishMapper.new(api)
+            api_dish = mapper.find(dish_name)
+
+            # Clean up old data if exists
+            Repository::For.klass(Entity::Dish).delete(dish.id) if dish&.id
+
+            # Create new dish
+            dish = Repository::For.klass(Entity::Dish).create(api_dish)
+          rescue StandardError => e
+            puts "API ERROR: #{e.message}"
+            return { error: messages[:api_error] }
+          end
+        end
+
+        if dish&.ingredients&.any?
+          # Add to search history
+          routing.session[:searched_dishes] ||= []
+          routing.session[:searched_dishes].insert(0, dish.name).uniq!
+          return { success: messages[:success_created], dish: dish }
+        else
+          return { error: messages[:no_ingredients] }
+        end
+      rescue StandardError => e
+        puts "DB ERROR: #{e.message}"
+        return { error: messages[:db_error] }
+      end
+    end
+
     route do |routing|
       response['Content-Type'] = 'text/html; charset=utf-8'
       routing.public
@@ -204,48 +119,14 @@ module MealDecoder
         # POST /fetch_dish
         routing.post do
           dish_name = routing.params['dish_name'].strip
+          result = self.class.process_dish_request(routing, dish_name, MESSAGES)
 
-          unless dish_name.match?(/\A[\p{L}\s]+\z/u)
-            flash[:error] = MESSAGES[:invalid_name]
+          if result[:error]
+            flash[:error] = result[:error]
             routing.redirect '/'
-          end
-
-          begin
-            dish = Repository::For.klass(Entity::Dish).find_name(dish_name)
-
-            if dish.nil? || dish.ingredients.empty?
-              begin
-                # Get dish from OpenAI API
-                api_key = App.config.OPENAI_API_KEY
-                api = Gateways::OpenAIAPI.new(api_key)
-                mapper = Mappers::DishMapper.new(api)
-                api_dish = mapper.find(dish_name)
-
-                # Clean up old data if exists
-                Repository::For.klass(Entity::Dish).delete(dish.id) if dish&.id
-
-                # Create new dish
-                dish = Repository::For.klass(Entity::Dish).create(api_dish)
-              rescue StandardError => e
-                puts "API ERROR: #{e.message}"
-                flash[:error] = MESSAGES[:api_error]
-                routing.redirect '/'
-              end
-            end
-
-            if dish&.ingredients&.any?
-              # Add to search history
-              session[:searched_dishes].insert(0, dish.name).uniq!
-              flash[:success] = MESSAGES[:success_created]
-              routing.redirect "/display_dish?name=#{CGI.escape(dish_name)}"
-            else
-              flash[:error] = MESSAGES[:no_ingredients]
-              routing.redirect '/'
-            end
-          rescue StandardError => e
-            puts "DB ERROR: #{e.message}"
-            flash[:error] = MESSAGES[:db_error]
-            routing.redirect '/'
+          else
+            flash[:success] = result[:success]
+            routing.redirect "/display_dish?name=#{CGI.escape(dish_name)}"
           end
         end
       end
