@@ -2,6 +2,8 @@
 
 source 'https://rubygems.org'
 
+ruby "3.3.5"
+
 gem 'ostruct', '0.6.0'
 
 # gem "rails"
@@ -31,6 +33,10 @@ gem 'sequel', '5.85'
 
 group :development, :test do
   gem 'sqlite3', '1.7'
+end
+
+group :production do
+  gem 'pg'
 end
 
 # Testing
