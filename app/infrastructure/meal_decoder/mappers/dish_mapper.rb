@@ -17,8 +17,8 @@ module MealDecoder
       def find(dish_name)
         puts "\n=== Starting the dish lookup process for: #{dish_name} ==="
         prepare_and_log_dish(dish_name)
-      rescue StandardError => error
-        log_and_raise_error(error)
+      rescue StandardError => e
+        log_and_raise_error(e)
       end
 
       private
@@ -43,21 +43,29 @@ module MealDecoder
       end
 
       def parse_ingredients(ingredients_text)
-        puts "Parsing ingredients list..."
-        MealDecoder::Entity::Ingredient.parse_ingredients(ingredients_text)
+        puts 'Parsing ingredients list...'
+        ingredients_text.split("\n")
+                        .map(&:strip)
+                        .reject(&:empty?)
+                        .map { |ingredient| clean_ingredient_text(ingredient) }
+                        .reject(&:empty?)
+      end
+
+      def clean_ingredient_text(ingredient)
+        # Remove bullet points, numbers, or other markers at the start of ingredients
+        ingredient.gsub(/^[\d\s.*•-]*/, '').strip
       end
 
       def create_dish_entity(dish_name, ingredients)
-        puts "Assembling the Dish entity..."
-        
+        puts 'Assembling the Dish entity...'
+
         # Create the dish without nutrition stats first
         MealDecoder::Entity::Dish.new(
           id: nil,
           name: dish_name,
-          ingredients: ingredients
+          ingredients:
         ).tap do |dish|
           puts "Created dish: #{dish.inspect}"
-          dish
         end
       end
 
@@ -75,7 +83,7 @@ module MealDecoder
       # Create a proper ingredient object that responds to calories_per_100g
       class IngredientWithCalories
         attr_reader :calories_per_100g
-        
+
         def initialize(calories)
           @calories_per_100g = calories
         end
