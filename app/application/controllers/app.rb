@@ -3,10 +3,13 @@
 require 'roda'
 require 'slim'
 require 'rack'
+require 'dry/monads'
 
 module MealDecoder
   # Web App
   class App < Roda
+    include Dry::Monads[:result]
+
     plugin :environments
     plugin :render, engine: 'slim', views: 'app/presentation/views_html'
     plugin :public, root: 'app/presentation/assets'
