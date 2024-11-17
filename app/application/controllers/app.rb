@@ -22,10 +22,6 @@ module MealDecoder
     plugin :error_handler
 
     use Rack::MethodOverride
-    use Rack::Session::Cookie,
-        secret: config.SESSION_SECRET,
-        key: 'meal_decoder.session',
-        expire_after: 2_592_000
 
     # Handle all errors
     error do |error|
