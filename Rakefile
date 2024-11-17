@@ -24,22 +24,36 @@ task :default do
 end
 
 # Testing tasks
+desc 'Run all tests'
 Rake::TestTask.new(:spec) do |t|
-  t.pattern = 'spec/*_spec.rb'
+  t.libs << 'spec'
+  t.pattern = 'spec/tests/**/*_spec.rb'
   t.warning = false
 end
 
-desc 'Run Google Vision API tests'
-task :spec_google do
-  sh 'ruby spec/gateway_google_vision_spec.rb'
+desc 'Run integration layer tests'
+Rake::TestTask.new(:spec_layers) do |t|
+  t.libs << 'spec'
+  t.pattern = 'spec/tests/integration/layers/*_spec.rb'
+  t.warning = false
 end
 
-desc 'Run OpenAI API tests'
-task :spec_openai do
-  sh 'ruby spec/gateway_openai_spec.rb'
+desc 'Run integration service tests'
+Rake::TestTask.new(:spec_services) do |t|
+  t.libs << 'spec'
+  t.pattern = 'spec/tests/integration/services/*_spec.rb'
+  t.warning = false
 end
 
-task spec: %i[spec_google spec_openai]
+desc 'Run unit tests'
+Rake::TestTask.new(:spec_unit) do |t|
+  t.libs << 'spec'
+  t.pattern = 'spec/tests/unit/**/*_spec.rb'
+  t.warning = false
+end
+
+# Run all specs
+task spec: %i[spec_unit spec_layers spec_services]
 
 desc 'Keep rerunning tests upon changes'
 task :respec do

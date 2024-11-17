@@ -14,7 +14,12 @@ module MealDecoder
         validates_presence :name
         validates_unique :name
         validates_max_length 100, :name
-        validates_format(/^[\p{L}\s]+$/u, :name, message: 'must contain only letters and spaces')
+        # Updated validation to allow characters from any language
+        validates_format(
+          /\A[\p{L}\p{M}\p{Zs}]+\z/u,
+          :name,
+          message: 'must contain only letters and spaces'
+        )
       end
 
       # Define the relationship between dishes and ingredients
@@ -26,6 +31,15 @@ module MealDecoder
       # Find existing record or create a new one based on dish name
       def self.find_or_create(dish_info)
         first(name: dish_info[:name]) || create(dish_info)
+      end
+
+      # Remove all ingredients associations safely
+      def remove_all_ingredients
+        Sequel::Model.db.transaction do
+          ingredients.each do |ingredient|
+            remove_ingredient(ingredient)
+          end
+        end
       end
     end
   end

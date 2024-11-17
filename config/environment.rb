@@ -11,8 +11,9 @@ module MealDecoder
   class App < Roda
     # use Rack::Session::Cookie, secret: config.SESSION_SECRET
     plugin :environments
-    env = ENV['RACK_ENV'] || 'development'
+
     # Environment variables setup using Figaro
+    env = ENV['RACK_ENV'] || 'development'
     Figaro.application = Figaro::Application.new(
       environment: env,
       path: File.expand_path('config/secrets.yml')
@@ -21,6 +22,12 @@ module MealDecoder
 
     def self.config = Figaro.env
 
+    # Session configuration moved here
+    plugin :sessions,
+           key: 'meal_decoder.session',
+           secret: config.SESSION_SECRET,
+           expire_after: 2_592_000 # 30 days in seconds
+
     configure :development, :test do
       require 'pry'
       # Make sure the db directory exists
@@ -28,11 +35,6 @@ module MealDecoder
       FileUtils.mkdir_p(File.dirname(db_path))
       ENV['DATABASE_URL'] = "sqlite://#{db_path}"
     end
-
-    use Rack::Session::Cookie,
-        secret: config.SESSION_SECRET,
-        key: 'meal_decoder.session',
-        expire_after: 2_592_000 # 30 days in seconds
 
     configure :production do
       # Use DATABASE_URL from environment
