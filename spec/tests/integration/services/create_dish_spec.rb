@@ -3,6 +3,8 @@
 require 'minitest/autorun'
 require_relative '../../../spec_helper'
 
+# Application domain entity and value objects for the MealDecoder service
+# Implements core business logic for dish creation and management
 module MealDecoder
   describe 'Test CreateDish service' do
     include MiniTestSetup

@@ -3,6 +3,8 @@
 require 'minitest/autorun'
 require_relative '../../../spec_helper'
 
+# Application domain entity and value objects for the MealDecoder service
+# Handles integration with external APIs and data persistence
 module MealDecoder
   describe 'Integration Tests of Google Vision API Gateway' do
     include MiniTestSetup

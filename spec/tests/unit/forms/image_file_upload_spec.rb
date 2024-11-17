@@ -3,6 +3,8 @@
 require 'minitest/autorun'
 require_relative '../../../spec_helper'
 
+# Application domain entity and value objects for the MealDecoder service
+# Handles form validation and processing for image uploads
 module MealDecoder
   describe 'Test Forms - Image File Upload' do
     before do

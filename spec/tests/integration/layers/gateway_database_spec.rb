@@ -3,6 +3,8 @@
 require 'minitest/autorun'
 require_relative '../../../spec_helper'
 
+# Application domain entity and value objects for the MealDecoder service
+# Provides core business logic and data structures for recipe management
 module MealDecoder
   describe 'Integration Tests of External APIs and Database' do
     include MiniTestSetup
