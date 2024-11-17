@@ -45,7 +45,13 @@ Rake::TestTask.new(:spec_unit) do |t|
   t.warning = false
 end
 
-task spec: %i[spec_google spec_openai spec_unit]
+desc 'Run service integration tests'
+Rake::TestTask.new(:spec_integration) do |t|
+  t.pattern = 'spec/tests/integration/**/*_spec.rb'
+  t.warning = false
+end
+
+task spec: %i[spec_google spec_openai spec_unit spec_integration]
 
 desc 'Keep rerunning tests upon changes'
 task :respec do

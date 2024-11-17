@@ -23,156 +23,27 @@ module MealDecoder
         key: 'meal_decoder.session',
         expire_after: 2_592_000 # 30 days in seconds
 
-    MESSAGES = {
-      no_dishes: 'Search for a dish to get started',
-      dish_not_found: 'Could not find that dish',
-      api_error: 'Having trouble accessing the API',
-      invalid_name: 'Invalid dish name. Please enter a valid name (letters and spaces only).',
-      no_ingredients: 'No ingredients found for this dish.',
-      db_error: 'Having trouble accessing the database',
-      api_dish_error: 'Could not fetch dish information',
-      success_created: 'Successfully added new dish!',
-      success_deleted: 'Dish removed from history',
-      text_detection_error: 'Error processing image text',
-      no_file: 'No file uploaded. Please upload an image file.'
-    }.freeze
-
-    def self.valid_dish_name?(dish_name)
-      # Allow any Unicode letter characters and whitespace from any language
-      # \p{L} matches any kind of letter from any language
-      # \p{M} matches a character intended to be combined with another character (e.g., accents, umlauts)
-      # \p{Zs} matches any kind of whitespace or invisible separator
-      return false if dish_name.empty?
-      dish_name.match?(/\A[\p{L}\p{M}\p{Zs}]+\z/u)
-    end
-
-    def self.process_dish_request(routing, dish_name, messages)
-      return handle_invalid_dish_name(messages) if dish_name.empty?
-
-      process_valid_dish_request(routing, dish_name, messages)
-    rescue StandardError => error
-      handle_db_error(error, messages)
-    end
-
-    def self.process_valid_dish_request(routing, dish_name, messages)
-      dish = find_or_create_dish(dish_name)
-      return handle_api_error_response(messages) unless dish
-
-      process_dish_with_ingredients(routing, dish, messages)
-    end
-
-    def self.process_dish_with_ingredients(routing, dish, messages)
-      if dish.ingredients.any?
-        add_to_search_history(routing, dish.name)
-        { success: messages[:success_created], dish: dish }
-      else
-        handle_no_ingredients(messages)
-      end
-    end
-
-    def self.handle_dish_response(dish, messages)
-      if dish.ingredients.any?
-        { success: messages[:success_created], dish: dish }
-      else
-        handle_no_ingredients(messages)
-      end
-    end
-
-    def self.handle_no_ingredients(messages)
-      { error: messages[:no_ingredients] }
-    end
-
-    def self.handle_invalid_dish_name(messages)
-      { error: messages[:invalid_name] }
-    end
-
-    def self.handle_api_error_response(messages)
-      { error: messages[:api_error] }
-    end
-
-    def self.valid_dish_name?(dish_name)
-      # Modified to accept Chinese characters and other Unicode letters
-      dish_name.match?(/\A[\p{L}\s]+\z/u)
-    end
-
-    def self.find_or_create_dish(dish_name)
-      dish = dish_from_repository(dish_name)
-      return dish if dish && dish.ingredients.any?
-
-      create_dish_from_api(dish_name)
-    end
-
-    def self.dish_from_repository(dish_name)
-      Repository::For.klass(Entity::Dish).find_name(dish_name)
-    end
-
-    def self.create_dish_from_api(dish_name)
-      api_key = App.config.OPENAI_API_KEY
-      api_dish = fetch_dish_from_api(dish_name, api_key)
-      return unless api_dish
-
-      delete_existing_dish(dish_name)
-      Repository::For.klass(Entity::Dish).create(api_dish)
-    end
-
-    def self.fetch_dish_from_api(dish_name, api_key)
-      api = Gateways::OpenAIAPI.new(api_key)
-      mapper = Mappers::DishMapper.new(api)
-      mapper.find(dish_name)
-    rescue StandardError => error
-      handle_api_error(error)
-    end
-
-    def self.handle_api_error(error)
-      puts "API ERROR: #{error.message}"
-      nil
-    end
-
-    def self.delete_existing_dish(dish_name)
-      dish = dish_from_repository(dish_name)
-      Repository::For.klass(Entity::Dish).delete(dish.id) if dish&.id
-    end
-
-    def self.add_to_search_history(routing, dish_name)
-      searched_dishes = routing.session[:searched_dishes] ||= []
-      searched_dishes.insert(0, dish_name).uniq!
-    end
-
-    def self.remove_from_history(routing, dish_name)
-      searched_dishes = routing.session[:searched_dishes] ||= []
-      searched_dishes.delete(dish_name)
-    end
-
-    def self.handle_db_error(error, messages)
-      puts "DB ERROR: #{error.message}"
-      { error: messages[:db_error] }
-    end
-
     route do |routing|
       response['Content-Type'] = 'text/html; charset=utf-8'
       routing.public
 
       # GET /
       routing.root do
-        # Initialize or retrieve session
         session[:searched_dishes] ||= []
 
         begin
-          # Load dishes from session history
           dishes = session[:searched_dishes].map do |dish_name|
-            self.class.dish_from_repository(dish_name)
+            Services::FetchDish.new.call(dish_name).value_or(nil)
           end.compact
 
-          # Update session with valid dishes only
           session[:searched_dishes] = dishes.map(&:name)
 
           view 'home', locals: {
             title_suffix: 'Home',
             dishes: Views::DishesList.new(dishes)
           }
-        rescue StandardError => db_error
-          puts "DB ERROR: #{db_error.message}"
-          flash.now[:error] = MESSAGES[:db_error]
+        rescue StandardError
+          flash.now[:error] = 'Having trouble accessing the database'
           view 'home', locals: {
             title_suffix: 'Home',
             dishes: Views::DishesList.new([])
@@ -183,62 +54,53 @@ module MealDecoder
       routing.on 'fetch_dish' do
         # POST /fetch_dish
         routing.post do
-          # Use the form object for validation
           form = Forms::NewDish.new.call(routing.params)
           if form.failure?
             flash[:error] = form.errors.messages.first.text
             routing.redirect '/'
           end
 
-          # Process the validated dish name
-          dish_name = form.to_h[:dish_name]
-          result = Repository::For.klass(Entity::Dish).find_name(dish_name)
+          result = Services::CreateDish.new.call(
+            dish_name: form.to_h[:dish_name],
+            session:
+          )
 
-          if result
-            session[:searched_dishes].insert(0, result.name).uniq!
-            flash[:success] = MESSAGES[:success_created]
-            routing.redirect "/display_dish?name=#{CGI.escape(result.name)}"
-          else
-            flash[:error] = MESSAGES[:dish_not_found]
+          case result
+          when Success
+            flash[:success] = 'Successfully added new dish!'
+            routing.redirect "/display_dish?name=#{CGI.escape(result.value!.name)}"
+          when Failure
+            flash[:error] = result.failure
             routing.redirect '/'
           end
         end
       end
 
       routing.on 'display_dish' do
-        # GET /display_dish
         routing.get do
           dish_name = CGI.unescape(routing.params['name'].to_s)
 
           unless dish_name
-            flash[:error] = MESSAGES[:dish_not_found]
+            flash[:error] = 'Could not find that dish'
             routing.redirect '/'
           end
 
-          begin
-            dish = self.class.dish_from_repository(dish_name)
+          result = Services::FetchDish.new.call(dish_name)
 
-            if dish
-              # Ensure dish is in search history
-              self.class.add_to_search_history(routing, dish.name)
-              view 'dish', locals: {
-                title_suffix: dish.name,
-                dish: Views::Dish.new(dish)
-              }
-            else
-              flash[:error] = MESSAGES[:dish_not_found]
-              routing.redirect '/'
-            end
-          rescue StandardError => db_error
-            puts "DISH DISPLAY ERROR: #{db_error.message}"
-            flash[:error] = MESSAGES[:db_error]
+          case result
+          when Success
+            view 'dish', locals: {
+              title_suffix: result.value!.name,
+              dish: Views::Dish.new(result.value!)
+            }
+          when Failure
+            flash[:error] = result.failure
             routing.redirect '/'
           end
         end
       end
 
       routing.on 'detect_text' do
-        # POST /detect_text
         routing.post do
           upload_form = Forms::ImageFileUpload.new.call(routing.params)
 
@@ -247,50 +109,38 @@ module MealDecoder
             routing.redirect '/'
           end
 
-          begin
-            validated_file = upload_form.to_h[:image_file]
-            api = Gateways::GoogleVisionAPI.new(App.config.GOOGLE_CLOUD_API_TOKEN)
-            text_result = api.detect_text(validated_file[:tempfile].path)
+          result = Services::DetectMenuText.new.call(upload_form.to_h[:image_file])
 
+          case result
+          when Success
             view 'display_text', locals: {
               title_suffix: 'Text Detection',
-              text: Views::TextDetection.new(text_result)
+              text: Views::TextDetection.new(result.value!)
             }
-          rescue StandardError => error
-            puts "VISION API ERROR: #{error.message}"
-            flash[:error] = MESSAGES[:text_detection_error]
+          when Failure
+            flash[:error] = result.failure
             routing.redirect '/'
           end
         end
       end
 
-      # DELETE /dish/{dish_name}
       routing.on 'dish', String do |encoded_dish_name|
         routing.delete do
           dish_name = CGI.unescape(encoded_dish_name)
 
-          begin
-            # Remove from search history
-            self.class.remove_from_history(routing, dish_name)
+          result = Services::RemoveDish.new.call(
+            dish_name:,
+            session:
+          )
 
-            # Try to find and delete the dish from database
-            dish = self.class.dish_from_repository(dish_name)
-            if dish
-              begin
-                Repository::For.klass(Entity::Dish).delete(dish.id)
-              rescue StandardError => e
-                puts "Database delete error: #{e.message}"
-                # Continue execution even if database delete fails
-              end
-            end
-
-            flash[:success] = MESSAGES[:success_deleted]
-          rescue StandardError => e
-            puts "Delete operation error: #{e.message}"
-            flash[:error] = MESSAGES[:db_error]
-          ensure
-            routing.redirect '/'
+          case result
+          when Success
+            flash[:success] = 'Dish removed from history'
+          when Failure
+            flash[:error] = result.failure
           end
+
+          routing.redirect '/'
         end
       end
     end
