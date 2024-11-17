@@ -3,11 +3,6 @@
 require 'roda'
 require 'slim'
 require 'rack'
-require_relative '../infrastructure/meal_decoder/gateways/openai_api'
-require_relative '../infrastructure/meal_decoder/gateways/google_vision_api'
-require_relative '../infrastructure/meal_decoder/mappers/dish_mapper'
-require_relative '../../config/environment'
-require_relative '../presentation/view_objects/init'
 
 module MealDecoder
   # Web App
