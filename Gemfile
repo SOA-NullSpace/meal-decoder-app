@@ -2,7 +2,7 @@
 
 source 'https://rubygems.org'
 
-ruby "3.3.5"
+ruby '3.3.5'
 
 gem 'ostruct', '0.6.0'
 
@@ -23,6 +23,11 @@ gem 'rack', '3.1'
 gem 'rack-session'
 gem 'roda', '3.85'
 gem 'slim', '5.2'
+
+# Controllers and services
+gem 'dry-monads', '1.6'
+gem 'dry-transaction', '0.16.0'
+gem 'dry-validation', '1.10'
 
 gem 'figaro'
 
