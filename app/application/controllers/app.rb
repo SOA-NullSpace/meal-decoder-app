@@ -183,15 +183,24 @@ module MealDecoder
       routing.on 'fetch_dish' do
         # POST /fetch_dish
         routing.post do
-          dish_name = routing.params['dish_name'].strip
-          result = self.class.process_dish_request(routing, dish_name, MESSAGES)
-
-          if result[:error]
-            flash[:error] = result[:error]
+          # Use the form object for validation
+          form = Forms::NewDish.new.call(routing.params)
+          if form.failure?
+            flash[:error] = form.errors.messages.first.text
             routing.redirect '/'
+          end
+
+          # Process the validated dish name
+          dish_name = form.to_h[:dish_name]
+          result = Repository::For.klass(Entity::Dish).find_name(dish_name)
+
+          if result
+            session[:searched_dishes].insert(0, result.name).uniq!
+            flash[:success] = MESSAGES[:success_created]
+            routing.redirect "/display_dish?name=#{CGI.escape(result.name)}"
           else
-            flash[:success] = result[:success]
-            routing.redirect "/display_dish?name=#{CGI.escape(dish_name)}"
+            flash[:error] = MESSAGES[:dish_not_found]
+            routing.redirect '/'
           end
         end
       end
@@ -231,23 +240,24 @@ module MealDecoder
       routing.on 'detect_text' do
         # POST /detect_text
         routing.post do
-          unless routing.params['image_file']
-            flash[:error] = MESSAGES[:no_file]
+          upload_form = Forms::ImageFileUpload.new.call(routing.params)
+
+          if upload_form.failure?
+            flash[:error] = upload_form.errors.messages.first.text
             routing.redirect '/'
           end
 
           begin
-            file = routing.params['image_file'][:tempfile]
-            api_key = App.config.GOOGLE_CLOUD_API_TOKEN
-            google_vision_api = Gateways::GoogleVisionAPI.new(api_key)
-            text_result = google_vision_api.detect_text(file.path)
+            validated_file = upload_form.to_h[:image_file]
+            api = Gateways::GoogleVisionAPI.new(App.config.GOOGLE_CLOUD_API_TOKEN)
+            text_result = api.detect_text(validated_file[:tempfile].path)
 
             view 'display_text', locals: {
               title_suffix: 'Text Detection',
               text: Views::TextDetection.new(text_result)
             }
-          rescue StandardError => vision_error
-            puts "VISION API ERROR: #{vision_error.message}"
+          rescue StandardError => error
+            puts "VISION API ERROR: #{error.message}"
             flash[:error] = MESSAGES[:text_detection_error]
             routing.redirect '/'
           end

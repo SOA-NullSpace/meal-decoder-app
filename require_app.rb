@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-def require_app(folders = %w[domain infrastructure presentation controllers])
+def require_app(folders = %w[domain infrastructure presentation application])
   app_list = Array(folders).map { |folder| "app/#{folder}" }
   full_list = ['config', app_list].flatten.join(',')
 

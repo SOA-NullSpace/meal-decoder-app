@@ -39,7 +39,13 @@ task :spec_openai do
   sh 'ruby spec/gateway_openai_spec.rb'
 end
 
-task spec: %i[spec_google spec_openai]
+desc 'Run unit tests'
+Rake::TestTask.new(:spec_unit) do |t|
+  t.pattern = 'spec/tests/unit/*_spec.rb'
+  t.warning = false
+end
+
+task spec: %i[spec_google spec_openai spec_unit]
 
 desc 'Keep rerunning tests upon changes'
 task :respec do
