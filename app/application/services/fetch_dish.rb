@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'dry/monads'
 require 'dry/transaction'
 
@@ -8,7 +10,6 @@ module MealDecoder
       include Dry::Monads[:result]
 
       def call(dish_name)
-        # Try to find dish in repository
         dish = Repository::For.klass(Entity::Dish).find_name(dish_name)
 
         if dish
@@ -16,8 +17,57 @@ module MealDecoder
         else
           Failure('Could not find that dish')
         end
-      rescue StandardError => e
-        Failure("Error fetching dish: #{e.message}")
+      rescue StandardError => fetch_error
+        Failure("Error fetching dish: #{fetch_error.message}")
+      end
+    end
+
+    # Factory for creating API-related objects
+    class APIFactory
+      def self.create_gateway
+        api_key = App.config.OPENAI_API_KEY
+        Gateways::OpenAIAPI.new(api_key)
+      end
+
+      def self.create_mapper
+        new_gateway = create_gateway
+        Mappers::DishMapper.new(new_gateway)
+      end
+    end
+
+    # Data container for dish creation process
+    class DishData
+      attr_reader :name, :dish, :session
+
+      def initialize(input)
+        @name = input[:dish_name]
+        @dish = input[:dish]
+        @session = input[:session]
+      end
+
+      def update_dish(new_dish)
+        @dish = new_dish
+        self
+      end
+
+      def save_to_repository
+        dish_repo = DishRepository.new
+        update_dish(dish_repo.save_dish(name, dish))
+      end
+
+      def add_to_history
+        return self unless dish
+
+        SearchHistory.new(session).add(dish.name)
+        self
+      end
+
+      def to_h
+        {
+          dish_name: @name,
+          dish: @dish,
+          session: @session
+        }
       end
     end
 
@@ -33,46 +83,77 @@ module MealDecoder
       private
 
       def validate_input(input)
-        if input[:dish_name].nil? || input[:dish_name].empty?
-          Failure('Dish name is required')
-        else
-          Success(input)
-        end
+        data = DishData.new(input)
+        return Failure('Dish name is required') if data.name.to_s.empty?
+
+        Success(data)
       end
 
-      def fetch_from_api(input)
-        api_key = App.config.OPENAI_API_KEY
-        api = Gateways::OpenAIAPI.new(api_key)
-        mapper = Mappers::DishMapper.new(api)
-
-        Success(input.merge(dish: mapper.find(input[:dish_name])))
-      rescue StandardError => e
-        Failure("API Error: #{e.message}")
+      def fetch_from_api(data)
+        dish = APIFactory.create_mapper.find(data.name)
+        Success(data.update_dish(dish))
+      rescue StandardError => api_error
+        Failure("API Error: #{api_error.message}")
       end
 
-      def save_to_repository(input)
-        # Delete existing dish if it exists
-        if existing = Repository::For.klass(Entity::Dish).find_name(input[:dish_name])
-          Repository::For.klass(Entity::Dish).delete(existing.id)
-        end
-
-        # Create new dish
-        dish = Repository::For.klass(Entity::Dish).create(input[:dish])
-        Success(input.merge(dish:))
-      rescue StandardError => e
-        Failure("Database Error: #{e.message}")
+      def save_to_repository(data)
+        Success(data.save_to_repository)
+      rescue StandardError => db_error
+        Failure("Database Error: #{db_error.message}")
       end
 
-      def add_to_history(input)
-        session = input[:session]
-        dish_name = input[:dish]&.name
+      def add_to_history(data)
+        data.add_to_history
+        Success(data.dish)
+      rescue StandardError => session_error
+        Failure("Session Error: #{session_error.message}")
+      end
+    end
 
-        searched_dishes = session[:searched_dishes] ||= []
-        searched_dishes.insert(0, dish_name).uniq!
+    # Handles dish repository operations
+    class DishRepository
+      def initialize
+        @repository = Repository::For.klass(Entity::Dish)
+      end
 
-        Success(input[:dish])
-      rescue StandardError => e
-        Failure("Session Error: #{e.message}")
+      def save_dish(dish_name, dish)
+        delete_existing_dish(dish_name)
+        @repository.create(dish)
+      end
+
+      private
+
+      def delete_existing_dish(dish_name)
+        return unless (existing = @repository.find_name(dish_name))
+
+        @repository.delete(existing.id)
+      end
+    end
+
+    # Manages search history in session
+    class SearchHistory
+      def initialize(session)
+        @session = session
+        ensure_history_exists
+      end
+
+      def add(dish_name)
+        searched_dishes.insert(0, dish_name)
+        searched_dishes.uniq!
+      end
+
+      def remove(dish_name)
+        searched_dishes.delete(dish_name)
+      end
+
+      private
+
+      def searched_dishes
+        @session[:searched_dishes]
+      end
+
+      def ensure_history_exists
+        @session[:searched_dishes] ||= []
       end
     end
 
@@ -83,10 +164,9 @@ module MealDecoder
       def call(image_file)
         api = Gateways::GoogleVisionAPI.new(App.config.GOOGLE_CLOUD_API_TOKEN)
         text_result = api.detect_text(image_file[:tempfile].path)
-
         Success(text_result)
-      rescue StandardError => e
-        Failure("Text detection error: #{e.message}")
+      rescue StandardError => vision_error
+        Failure("Text detection error: #{vision_error.message}")
       end
     end
 
@@ -101,33 +181,24 @@ module MealDecoder
       private
 
       def validate_input(input)
-        if input[:dish_name].nil? || input[:dish_name].empty?
-          Failure('Dish name is required')
-        else
-          Success(input)
-        end
+        data = DishData.new(input)
+        return Failure('Dish name is required') if data.name.to_s.empty?
+
+        Success(data)
       end
 
-      def remove_from_history(input)
-        session = input[:session]
-        dish_name = input[:dish_name]
-
-        searched_dishes = session[:searched_dishes] ||= []
-        searched_dishes.delete(dish_name)
-
-        Success(input)
-      rescue StandardError => e
-        Failure("Session Error: #{e.message}")
+      def remove_from_history(data)
+        SearchHistory.new(data.session).remove(data.name)
+        Success(data)
+      rescue StandardError => history_error
+        Failure("Session Error: #{history_error.message}")
       end
 
-      def delete_from_database(input)
-        if dish = Repository::For.klass(Entity::Dish).find_name(input[:dish_name])
-          Repository::For.klass(Entity::Dish).delete(dish.id)
-        end
-
+      def delete_from_database(data)
+        DishRepository.new.save_dish(data.name, nil)
         Success('Dish removed successfully')
-      rescue StandardError => e
-        Failure("Database Error: #{e.message}")
+      rescue StandardError => delete_error
+        Failure("Database Error: #{delete_error.message}")
       end
     end
   end
