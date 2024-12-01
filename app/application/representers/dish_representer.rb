@@ -8,6 +8,7 @@ module MealDecoder
     # Represents essential Dish information for API output
     class Dish < Roar::Decorator
       include Roar::JSON
+      include Roar::Decorator::HashMethods
 
       property :id
       property :name

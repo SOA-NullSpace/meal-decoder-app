@@ -250,15 +250,23 @@ module MealDecoder
         end
       end
 
+      # def handle_response(response_data)
+      #   return Failure('No dish data returned from API') if response_data.nil?
+
+      #   Success(
+      #     'name' => response_data['name'],
+      #     'ingredients' => response_data['ingredients'] || [],
+      #     'total_calories' => response_data['total_calories'] || 0,
+      #     'calorie_level' => response_data['calorie_level'] || 'Unknown'
+      #   )
+      # end
       def handle_response(response_data)
         return Failure('No dish data returned from API') if response_data.nil?
 
-        Success(
-          'name' => response_data['name'],
-          'ingredients' => response_data['ingredients'] || [],
-          'total_calories' => response_data['total_calories'] || 0,
-          'calorie_level' => response_data['calorie_level'] || 'Unknown'
-        )
+        # Simply pass through the API response data since it's already in the correct format
+        Success(response_data)
+      rescue StandardError => e
+        Failure("Could not process dish data: #{e.message}")
       end
     end
 
@@ -293,7 +301,7 @@ module MealDecoder
         session = input[:session] ||= {}
         session[:searched_dishes] ||= []
         dish_data = input[:dish]
-        
+
         if dish_data && dish_data['name']
           session[:searched_dishes].unshift(dish_data['name'])
           session[:searched_dishes].uniq!
@@ -317,12 +325,12 @@ module MealDecoder
 
       def validate(image_file)
         return Failure('No image file provided') unless image_file && image_file[:tempfile]
-        
+
         validation = Forms::ImageFileUpload.new.call(image_file: {
-          tempfile: image_file[:tempfile],
-          type: image_file[:type],
-          filename: image_file[:filename]
-        })
+                                                       tempfile: image_file[:tempfile],
+                                                       type: image_file[:type],
+                                                       filename: image_file[:filename]
+                                                     })
 
         if validation.success?
           Success(image_file)
@@ -333,7 +341,7 @@ module MealDecoder
 
       def detect_text(image_file)
         response = Gateway::Api.new(App.config).detect_text(image_file[:tempfile].path)
-        
+
         if response.success?
           # Access the data from payload['data'] instead of data
           Success(response.payload['data'])
@@ -343,8 +351,12 @@ module MealDecoder
       end
     end
 
-    class RemoveDish
+    class RemoveDish < Dry::Validation::Contract
       include Dry::Monads[:result]
+      params do
+        required(:dish_name).filled(:string)
+        required(:session).filled(:hash)
+      end
 
       def call(input)
         dish_name = input[:dish_name]
