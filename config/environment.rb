@@ -7,6 +7,8 @@ require 'yaml'
 require 'rack/method_override'
 require 'rack/session'
 require 'rack'
+require 'rack/cache'
+require 'redis-rack-cache'
 
 module MealDecoder
   # Configuration for the App
@@ -51,6 +53,22 @@ module MealDecoder
 
     configure :production do
       # Use DATABASE_URL from environment
+    end
+
+    configure :development do
+      # File-based cache for development
+      use Rack::Cache,
+        verbose: true,
+        metastore:   'file:_cache/rack/meta',
+        entitystore: 'file:_cache/rack/body'
+    end
+
+    configure :production do
+      # Redis-based cache for production
+      use Rack::Cache,
+        verbose: true,
+        metastore:   "#{config.REDISCLOUD_URL}/0/metastore",
+        entitystore: "#{config.REDISCLOUD_URL}/0/entitystore"
     end
 
     # Database Setup
