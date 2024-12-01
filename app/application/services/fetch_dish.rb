@@ -342,5 +342,28 @@ module MealDecoder
         end
       end
     end
+
+    class RemoveDish
+      include Dry::Monads[:result]
+
+      def call(input)
+        dish_name = input[:dish_name]
+        session = input[:session]
+
+        if dish_name && session
+          remove_from_session(dish_name, session)
+          Success('Dish successfully removed from history')
+        else
+          Failure('Invalid parameters for dish removal')
+        end
+      end
+
+      private
+
+      def remove_from_session(dish_name, session)
+        session[:searched_dishes] ||= []
+        session[:searched_dishes].delete(dish_name)
+      end
+    end
   end
 end
