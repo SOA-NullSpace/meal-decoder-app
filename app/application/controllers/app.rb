@@ -10,6 +10,7 @@ module MealDecoder
   class App < Roda
     include Dry::Monads[:result]
 
+    plugin :caching
     plugin :environments
     plugin :render, engine: 'slim', views: 'app/presentation/views_html'
     plugin :public, root: 'app/presentation/assets'
@@ -26,7 +27,7 @@ module MealDecoder
 
     use Rack::MethodOverride
 
-     # Handle all errors
+    # Handle all errors
     error do |error|
       puts "ERROR: #{error.inspect}"
       puts error.backtrace
@@ -44,9 +45,10 @@ module MealDecoder
 
       # GET / - Home page with search history
       routing.root do
+        response.cache_control public: true, max_age: 60
         session[:searched_dishes] ||= []
         puts "Current session dishes: #{session[:searched_dishes]}"
-        
+
         dishes = session[:searched_dishes].map do |dish_name|
           puts "Fetching dish: #{dish_name}"
           result = Services::FetchDish.new.call(dish_name)
@@ -71,10 +73,10 @@ module MealDecoder
       routing.on 'fetch_dish' do
         routing.post do
           puts "Received dish_name: #{routing.params['dish_name']}"
-          
+
           result = Services::CreateDish.new.call(
             dish_name: routing.params['dish_name'],
-            session: session
+            session:
           )
 
           case result
@@ -95,11 +97,15 @@ module MealDecoder
       # GET /display_dish - Show detailed dish information
       routing.on 'display_dish' do
         routing.get do
+          if App.environment == :production
+            response.expires 60, public: true
+            response.headers['Cache-Control'] = 'public, must-revalidate'
+          end
           dish_name = CGI.unescape(routing.params['name'].to_s)
           puts "Displaying dish: #{dish_name}"
-          
+
           result = Services::FetchDish.new.call(dish_name)
-          
+
           case result
           when Success
             view 'dish', locals: {
