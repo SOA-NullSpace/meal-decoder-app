@@ -38,6 +38,8 @@ require 'dry-validation'
 
 module MealDecoder
   module Forms
+    # Form validation contract for image file uploads
+    # Validates file type, size, and extension for menu image processing
     class ImageFileUpload < Dry::Validation::Contract
       params do
         required(:image_file).filled(:hash) do

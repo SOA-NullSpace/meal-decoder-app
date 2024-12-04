@@ -27,7 +27,7 @@ module MealDecoder
         lines.count
       end
 
-      def has_content?
+      def content?
         line_count.positive?
       end
 
