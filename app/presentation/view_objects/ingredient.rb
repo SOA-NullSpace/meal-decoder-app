@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 # app/presentation/view_objects/ingredient.rb
 # app/presentation/view_objects/ingredient.rb
 module MealDecoder
@@ -14,6 +16,7 @@ module MealDecoder
 
       def formatted_amount
         return @name unless @amount || @unit
+
         [@amount, @unit, @name].compact.join(' ')
       end
 

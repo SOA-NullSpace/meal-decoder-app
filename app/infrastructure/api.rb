@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 # app/infrastructure/gateways/api.rb
 require 'http'
 
@@ -28,10 +30,10 @@ module MealDecoder
       def post(url, data, content_type = :json)
         result = if content_type == :form
                    HTTP.headers(form_headers)
-                       .post("#{@api_root}/#{url}", form: data)
+                     .post("#{@api_root}/#{url}", form: data)
                  else
                    HTTP.headers(headers)
-                       .post("#{@api_root}/#{url}", json: data)
+                     .post("#{@api_root}/#{url}", json: data)
                  end
         Response.new(result)
       end
@@ -40,7 +42,7 @@ module MealDecoder
 
       def headers
         {
-          'Accept' => 'application/json',
+          'Accept'       => 'application/json',
           'Content-Type' => 'application/json'
         }
       end

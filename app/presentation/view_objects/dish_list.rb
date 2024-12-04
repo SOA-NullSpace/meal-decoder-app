@@ -43,8 +43,8 @@ module MealDecoder
         @dishes.any?
       end
 
-      def each(&block)
-        @dishes.each(&block)
+      def each(&)
+        @dishes.each(&)
       end
 
       def count
