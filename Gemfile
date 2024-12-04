@@ -20,11 +20,16 @@ gem 'http', '5.2'
 gem 'multi_json', '1.15'
 gem 'roar', '1.2'
 
+# Caching
+gem 'rack-cache', '1.13'
+gem 'redis', '4.8'
+gem 'redis-rack-cache', '2.2'
+
 # Web Application
 gem 'logger', '1.6'
 gem 'puma', '6.4'
-gem 'rack', '3.1'
-gem 'rack-session'
+gem 'rack', '3.0'
+gem 'rack-session', '2.0'
 gem 'roda', '3.85'
 gem 'slim', '5.2'
 
