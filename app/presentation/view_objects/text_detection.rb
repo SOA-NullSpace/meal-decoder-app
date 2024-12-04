@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module MealDecoder
   module Views
     # View object for text detection results
@@ -12,9 +14,9 @@ module MealDecoder
 
       def lines
         @lines ||= @text_result
-                   .split("\n")
-                   .map(&:strip)
-                   .reject(&:empty?)
+          .split("\n")
+          .map(&:strip)
+          .reject(&:empty?)
       end
 
       def each_line_with_index(&)
@@ -25,7 +27,7 @@ module MealDecoder
         lines.count
       end
 
-      def has_content?
+      def content?
         line_count.positive?
       end
 

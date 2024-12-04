@@ -1,4 +1,3 @@
-# app/presentation/view_objects/dish.rb
 # frozen_string_literal: true
 
 module MealDecoder
@@ -14,8 +13,8 @@ module MealDecoder
         @calorie_level = data['calorie_level'] || calculate_calorie_level
       end
 
-      def has_ingredients?
-        @ingredients&.any?
+      def ingredients?
+        @entity.ingredients&.any?
       end
 
       def ingredients_count
