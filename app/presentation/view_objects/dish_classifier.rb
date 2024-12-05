@@ -1,8 +1,8 @@
 # frozen_string_literal: true
 
 module MealDecoder
-  module Value
-    # Classifies dishes based on their names
+  module Views
+    # Classifies dishes based on their names for view presentation
     class DishClassifier
       DISH_TYPES = {
         soup: /soup|stew|broth/i,

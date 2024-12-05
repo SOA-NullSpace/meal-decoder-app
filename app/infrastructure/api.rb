@@ -16,24 +16,15 @@ module MealDecoder
         Response.new(result)
       end
 
-      # def post(url, data, content_type = :json)
-      #   if content_type == :json
-      #     result = HTTP.headers(headers)
-      #                .post("#{@api_root}/#{url}", json: data)
-      #   else
-      #     result = HTTP.headers(form_headers)
-      #                .post("#{@api_root}/#{url}", form: data)
-      #   end
-      #   Response.new(result)
-      # end
-      def post(url, data, content_type = :json)
-        result = if content_type == :form
-                   HTTP.headers(form_headers)
-                     .post("#{@api_root}/#{url}", form: data)
-                 else
-                   HTTP.headers(headers)
-                     .post("#{@api_root}/#{url}", json: data)
-                 end
+      def post_json(url, data)
+        result = HTTP.headers(headers)
+          .post("#{@api_root}/#{url}", json: data)
+        Response.new(result)
+      end
+
+      def post_form(url, data)
+        result = HTTP.headers(form_headers)
+          .post("#{@api_root}/#{url}", form: data)
         Response.new(result)
       end
 
@@ -53,11 +44,14 @@ module MealDecoder
       end
     end
 
-    # Response wrapper
+    # Response wrapper for HTTP responses
     class Response
       attr_reader :status, :message, :payload
 
       def initialize(http_response)
+        @status = nil
+        @message = nil
+        @payload = nil
         @response = http_response
         parse_response
       end
@@ -73,8 +67,8 @@ module MealDecoder
         when HTTP::Response
           process_http_response
         end
-      rescue JSON::ParserError => e
-        handle_parse_error(e)
+      rescue JSON::ParserError => parse_error
+        handle_parse_error(parse_error)
       end
 
       def process_http_response
@@ -101,8 +95,8 @@ module MealDecoder
         puts "API Error response: #{@message}"
       end
 
-      def handle_parse_error(error)
-        puts "JSON parsing error: #{error.message}"
+      def handle_parse_error(parse_error)
+        puts "JSON parsing error: #{parse_error.message}"
         @status = 500
         @message = 'Invalid JSON response from API'
         @payload = nil
@@ -111,6 +105,17 @@ module MealDecoder
 
     # Main API Gateway class
     class Api
+      # Creates properly formatted multipart form data objects for API requests
+      class FormData
+        def self.create(file, path)
+          HTTP::FormData::File.new(
+            file,
+            content_type: 'image/jpeg',
+            filename: File.basename(path)
+          )
+        end
+      end
+
       def initialize(config)
         @config = config
         @request = Request.new(@config)
@@ -118,7 +123,7 @@ module MealDecoder
 
       def create_dish(name)
         puts "Creating dish with name: #{name}"
-        response = @request.post('dishes', { dish_name: name })
+        response = @request.post_json('dishes', { dish_name: name })
         puts "Create dish response: #{response.inspect}"
         response
       end
@@ -130,46 +135,31 @@ module MealDecoder
         response
       end
 
-      # def detect_text(image_path)
-      #   form_data = HTTP::FormData::File.new(image_path)
-      #   @request.post('detect_text', { image_file: form_data }, :form)
-      # end
-
       def detect_text(image_path)
         puts "Detecting text from image: #{image_path}"
         process_image_detection(image_path)
-      rescue StandardError => e
-        log_error_and_return_failure(e)
+      rescue StandardError => error
+        handle_detection_error(error)
       end
 
       private
 
       def process_image_detection(image_path)
         image_file = File.open(image_path, 'rb')
-        form_data = build_form_data(image_file, image_path)
-        send_detection_request(form_data)
+        form_data = FormData.create(image_file, image_path)
+        @request.post_form('detect_text', { image_file: form_data })
       ensure
         image_file&.close
       end
 
-      def build_form_data(file, path)
-        HTTP::FormData::File.new(
-          file,
-          content_type: 'image/jpeg',
-          filename: File.basename(path)
-        )
-      end
-
-      def send_detection_request(form_data)
-        @request.post('detect_text', { image_file: form_data }, :form)
-      end
-
-      def log_error_and_return_failure(error)
-        puts "Error in detect_text: #{error.message}"
+      def handle_detection_error(error)
+        error_message = error.message
+        puts "Error in detect_text: #{error_message}"
         puts error.backtrace.join("\n")
+
         OpenStruct.new(
           success?: false,
-          message: "Failed to process image: #{error.message}",
+          message: "Failed to process image: #{error_message}",
           status: 500
         )
       end

@@ -1,222 +1,30 @@
-# # frozen_string_literal: true
-
-# require 'dry/monads'
-# require 'dry/transaction'
-
-# module MealDecoder
-#   module Services
-#     # Service to fetch dish details
-#     class FetchDish
-#       include Dry::Monads[:result]
-
-#       def call(dish_name)
-#         dish = Repository::For.klass(Entity::Dish).find_name(dish_name)
-
-#         if dish
-#           Success(dish)
-#         else
-#           Failure('Could not find that dish')
-#         end
-#       rescue StandardError => fetch_error
-#         Failure("Error fetching dish: #{fetch_error.message}")
-#       end
-#     end
-
-#     # Factory for creating API-related objects
-#     class APIFactory
-#       def self.create_gateway
-#         api_key = App.config.OPENAI_API_KEY
-#         Gateways::OpenAIAPI.new(api_key)
-#       end
-
-#       def self.create_mapper
-#         new_gateway = create_gateway
-#         Mappers::DishMapper.new(new_gateway)
-#       end
-#     end
-
-#     # Data container for dish creation process
-#     class DishData
-#       attr_reader :name, :dish, :session
-
-#       def initialize(input)
-#         @name = input[:dish_name]
-#         @dish = input[:dish]
-#         @session = input[:session]
-#         ensure_session_array
-#       end
-
-#       def update_dish(new_dish)
-#         @dish = new_dish
-#         self
-#       end
-
-#       def save_to_repository
-#         dish_repo = DishRepository.new
-#         update_dish(dish_repo.save_dish(name, dish))
-#       end
-
-#       def add_to_history
-#         return self unless dish
-
-#         @session[:searched_dishes].unshift(dish.name)
-#         @session[:searched_dishes].uniq!
-#         self
-#       end
-
-#       private
-
-#       def ensure_session_array
-#         @session[:searched_dishes] ||= []
-#       end
-#     end
-
-#     # Service to create new dish from API
-#     class CreateDish
-#       include Dry::Transaction
-
-#       step :validate_input
-#       step :fetch_from_api
-#       step :save_to_repository
-#       step :add_to_history
-
-#       private
-
-#       def validate_input(input)
-#         puts "Validating input with dish_name: #{input[:dish_name]}"
-#         data = DishData.new(input)
-#         return Failure('Dish name is required') if data.name.to_s.empty?
-
-#         Success(data)
-#       end
-
-#       def fetch_from_api(data)
-#         puts "Fetching from API for dish: #{data.name}"
-#         dish = APIFactory.create_mapper.find(data.name)
-#         Success(data.update_dish(dish))
-#       rescue StandardError => api_error
-#         Failure("API Error: #{api_error.message}")
-#       end
-
-#       def save_to_repository(data)
-#         puts "Saving to repository: #{data.dish.name}"
-#         Success(data.save_to_repository)
-#       rescue StandardError => db_error
-#         Failure("Database Error: #{db_error.message}")
-#       end
-
-#       def add_to_history(data)
-#         puts "Adding to history, session before: #{data.session[:searched_dishes]}"
-#         data.add_to_history
-#         puts "Session after update: #{data.session[:searched_dishes]}"
-#         Success(data.dish)
-#       rescue StandardError => session_error
-#         Failure("Session Error: #{session_error.message}")
-#       end
-#     end
-
-#     # Handles dish repository operations
-#     class DishRepository
-#       def initialize
-#         @repository = Repository::For.klass(Entity::Dish)
-#       end
-
-#       def save_dish(dish_name, dish)
-#         delete_existing_dish(dish_name)
-#         @repository.create(dish)
-#       end
-
-#       private
-
-#       def delete_existing_dish(dish_name)
-#         return unless (existing = @repository.find_name(dish_name))
-
-#         @repository.delete(existing.id)
-#       end
-#     end
-
-#     # Manages search history in session
-#     class SearchHistory
-#       def initialize(session)
-#         @session = session
-#         ensure_history_exists
-#       end
-
-#       def add(dish_name)
-#         searched_dishes.insert(0, dish_name)
-#         searched_dishes.uniq!
-#       end
-
-#       def remove(dish_name)
-#         searched_dishes.delete(dish_name)
-#       end
-
-#       private
-
-#       def searched_dishes
-#         @session[:searched_dishes]
-#       end
-
-#       def ensure_history_exists
-#         @session[:searched_dishes] ||= []
-#       end
-#     end
-
-#     # Service to process image uploads and detect text
-#     class DetectMenuText
-#       include Dry::Monads[:result]
-
-#       def call(image_file)
-#         api = Gateways::GoogleVisionAPI.new(App.config.GOOGLE_CLOUD_API_TOKEN)
-#         text_result = api.detect_text(image_file[:tempfile].path)
-#         Success(text_result)
-#       rescue StandardError => vision_error
-#         Failure("Text detection error: #{vision_error.message}")
-#       end
-#     end
-
-#     # Service to remove dish from history
-#     class RemoveDish
-#       include Dry::Transaction
-
-#       step :validate_input
-#       step :remove_from_history
-#       step :delete_from_database
-
-#       private
-
-#       def validate_input(input)
-#         data = DishData.new(input)
-#         return Failure('Dish name is required') if data.name.to_s.empty?
-
-#         Success(data)
-#       end
-
-#       def remove_from_history(data)
-#         SearchHistory.new(data.session).remove(data.name)
-#         Success(data)
-#       rescue StandardError => history_error
-#         Failure("Session Error: #{history_error.message}")
-#       end
-
-#       def delete_from_database(data)
-#         DishRepository.new.save_dish(data.name, nil)
-#         Success('Dish removed successfully')
-#       rescue StandardError => delete_error
-#         Failure("Database Error: #{delete_error.message}")
-#       end
-#     end
-#   end
-# end
-
 # frozen_string_literal: true
 
 require 'dry/monads'
-require 'dry/transaction'
 
-# app/application/services/fetch_dish.rb
 module MealDecoder
   module Services
+    # Handles API response processing
+    class ResponseHandler
+      include Dry::Monads[:result]
+
+      def self.handle_api_response(response, input)
+        if response.success?
+          Success(input.merge(dish: response.payload))
+        else
+          Failure(response.message)
+        end
+      end
+
+      def self.handle_detection_response(response)
+        if response.success?
+          Success(response.payload['data'])
+        else
+          Failure(response.message || 'Failed to detect text from image')
+        end
+      end
+    end
+
     # Service to fetch dish details from API
     class FetchDish
       include Dry::Monads[:result]
@@ -234,7 +42,7 @@ module MealDecoder
       private
 
       def validate(dish_name)
-        if dish_name.nil? || dish_name.strip.empty?
+        if dish_name.to_s.strip.empty?
           Failure('Dish name cannot be empty')
         else
           Success(dish_name)
@@ -243,137 +51,152 @@ module MealDecoder
 
       def fetch_from_api(dish_name)
         response = @gateway.fetch_dish(dish_name)
-        if response.success?
-          Success(response.payload)
-        else
-          Failure(response.message)
-        end
+        response.success? ? Success(response.payload) : Failure(response.message)
       end
 
-      # def handle_response(response_data)
-      #   return Failure('No dish data returned from API') if response_data.nil?
+      def handle_response(response_data = {})
+        return Failure('No dish data returned from API') if response_data.empty?
 
-      #   Success(
-      #     'name' => response_data['name'],
-      #     'ingredients' => response_data['ingredients'] || [],
-      #     'total_calories' => response_data['total_calories'] || 0,
-      #     'calorie_level' => response_data['calorie_level'] || 'Unknown'
-      #   )
-      # end
-      def handle_response(response_data)
-        return Failure('No dish data returned from API') if response_data.nil?
-
-        # Simply pass through the API response data since it's already in the correct format
         Success(response_data)
-      rescue StandardError => e
-        Failure("Could not process dish data: #{e.message}")
+      rescue StandardError => error
+        Failure("Could not process dish data: #{error.message}")
       end
     end
 
-    # Service to create new dish from API
+    # Input handler for create dish operations
+    class CreateDishInput
+      def self.process(input)
+        dish_data = input.dig(:dish, 'name')
+        return Failure('Invalid dish data received from API') unless dish_data
+
+        session_manager = SessionManager.new(input[:session])
+        session_manager.add_dish(dish_data)
+        Success(input[:dish])
+      end
+    end
+
+    # Service to create new dish and manage history
     class CreateDish
       include Dry::Transaction
 
       step :validate_input
-      step :create_via_api
-      step :add_to_history
+      step :fetch_from_api
+      step :update_history
+
+      def initialize
+        @gateway = Gateway::Api.new(App.config)
+        @input_processor = CreateDishInput
+      end
 
       private
 
       def validate_input(input)
         validation = Forms::NewDish.new.call(dish_name: input[:dish_name])
-        if validation.success?
-          Success(input)
-        else
-          Failure(validation.errors.messages.join('; '))
-        end
+        validation.success? ? Success(input) : Failure(validation.errors.messages.join('; '))
       end
 
-      def create_via_api(input)
-        response = Gateway::Api.new(App.config).create_dish(input[:dish_name])
-        if response.success?
-          Success(input.merge(dish: response.payload))
-        else
-          Failure(response.message)
-        end
+      def fetch_from_api(input)
+        response = @gateway.create_dish(input[:dish_name])
+        ResponseHandler.handle_api_response(response, input)
       end
 
-      def add_to_history(input)
-        session = input[:session] ||= {}
-        session[:searched_dishes] ||= []
-        dish_data = input[:dish]
-
-        if dish_data && dish_data['name']
-          session[:searched_dishes].unshift(dish_data['name'])
-          session[:searched_dishes].uniq!
-          Success(dish_data)
-        else
-          Failure('Invalid dish data received from API')
-        end
+      def update_history(input)
+        @input_processor.process(input)
       end
     end
 
-    # Service to handle text detection from images
+    # Service to process menu image uploads
     class DetectMenuText
       include Dry::Monads[:result]
 
+      def initialize
+        @validator = ImageValidator.new
+        @gateway = Gateway::Api.new(App.config)
+      end
+
       def call(image_file)
-        validate(image_file)
-          .bind { |file| detect_text(file) }
+        @validator.validate(image_file)
+          .bind { |valid_file| process_image(valid_file) }
       end
 
       private
 
-      def validate(image_file)
-        return Failure('No image file provided') unless image_file && image_file[:tempfile]
-
-        validation = Forms::ImageFileUpload.new.call(
-          image_file: {
-            tempfile: image_file[:tempfile],
-            type: image_file[:type],
-            filename: image_file[:filename]
-          }
-        )
-        validation.success? ? Success(image_file) : Failure(validation.errors.messages.join('; '))
-      end
-
-      def detect_text(image_file)
-        response = Gateway::Api.new(App.config).detect_text(image_file[:tempfile].path)
-
-        if response.success?
-          # Access the data from payload['data'] instead of data
-          Success(response.payload['data'])
-        else
-          Failure(response.message || 'Failed to detect text from image')
-        end
+      def process_image(image_file)
+        response = @gateway.detect_text(image_file[:tempfile].path)
+        ResponseHandler.handle_detection_response(response)
       end
     end
 
-    # Service to remove a dish and update session
-    class RemoveDish < Dry::Validation::Contract
+    # Service to remove dish from history
+    class RemoveDish
       include Dry::Monads[:result]
-      params do
-        required(:dish_name).filled(:string)
-        required(:session).filled(:hash)
+
+      def call(dish_name:, session:)
+        SessionManager.new(session).remove_dish(dish_name)
+        Success('Dish successfully removed from history')
+      rescue StandardError => error
+        Failure("Failed to remove dish: #{error.message}")
+      end
+    end
+
+    # Handles session management for dish history
+    class SessionManager
+      def initialize(session)
+        @session = session
+        @session[:searched_dishes] ||= []
       end
 
-      def call(input)
-        dish_name = input[:dish_name]
-        session = input[:session]
+      def add_dish(dish_name)
+        searched_dishes.unshift(dish_name)
+        searched_dishes.uniq!
+      end
 
-        if dish_name && session
-          remove_from_session(dish_name, session)
-          Success('Dish successfully removed from history')
-        else
-          Failure('Invalid parameters for dish removal')
-        end
+      def remove_dish(dish_name)
+        searched_dishes.delete(dish_name)
       end
 
       private
 
-      def remove_from_session(dish_name, session)
-        session[:searched_dishes] ||= []
-        session[:searched_dishes].delete(dish_name)
+      def searched_dishes
+        @session[:searched_dishes]
+      end
+    end
+
+    # Validates image file uploads
+    class ImageValidator
+      include Dry::Monads[:result]
+
+      def initialize
+        @validation_form = Forms::ImageFileUpload.new
+        @image_file = nil
+      end
+
+      def validate(image_file)
+        @image_file = image_file
+        return Failure('No image file provided') unless valid_file?
+
+        validate_with_form
+      end
+
+      private
+
+      attr_reader :image_file
+
+      def valid_file?
+        image_file && image_file[:tempfile]
+      end
+
+      def validate_with_form
+        validation = @validation_form.call(image_file: image_attributes)
+        validation.success? ? Success(image_file) : Failure(validation.errors.messages.join('; '))
+      end
+
+      def image_attributes
+        {
+          tempfile: image_file[:tempfile],
+          type: image_file[:type],
+          filename: image_file[:filename]
+        }
       end
     end
   end
