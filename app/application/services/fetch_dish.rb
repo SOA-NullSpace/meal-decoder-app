@@ -150,25 +150,26 @@ module MealDecoder
 
       def call(image_file)
         @validator.validate(image_file)
-          .bind { |valid_file| process_image(valid_file) }
+          .bind { |valid_file| handle_image(valid_file) }
           .bind { |response| extract_text(response) }
       end
 
       private
 
-      def process_image(image_file)
-        puts "Processing image from: #{image_file[:tempfile].path}"
-        response = @gateway.detect_text(image_file[:tempfile].path)
-        puts "API Response: #{response.inspect}"
-
-        if response.success?
-          Success(response.payload)
-        else
-          Failure(response.message)
-        end
+      def handle_image(image_file)
+        process_image(image_file)
       rescue StandardError => e
-        puts "Error in process_image: #{e.message}"
-        Failure("Image processing failed: #{e.message}")
+        handle_image_error(e)
+      end
+
+      def process_image(image_file)
+        response = @gateway.detect_text(image_file[:tempfile].path)
+        response.success? ? Success(response.payload) : Failure(response.message)
+      end
+
+      def handle_image_error(error)
+        puts "Error in process_image: #{error.message}"
+        Failure("Image processing failed: #{error.message}")
       end
 
       def extract_text(response)

@@ -18,7 +18,7 @@ module MealDecoder
         @ingredients ||= @raw_ingredients.map { |ing| Ingredient.new(name: ing) }
       end
 
-      def has_ingredients?
+      def ingredients?
         ingredients.any?
       end
 

@@ -62,14 +62,18 @@ module MealDecoder
         case response
         when HTTP::Response
           @status = response.code
-          if response.status.success?
-            process_successful_response(response)
-          else
-            process_error_response(response)
-          end
+          process_by_status(response)
         end
       rescue JSON::ParserError => e
-        handle_parse_error(e)
+        handle_parse_error(e.message)
+      end
+
+      def process_by_status(response)
+        if response.status.success?
+          process_successful_response(response)
+        else
+          process_error_response(response)
+        end
       end
 
       def process_successful_response(response)
@@ -83,9 +87,9 @@ module MealDecoder
         @payload = nil
       end
 
-      def handle_parse_error(error)
+      def handle_parse_error(error_message)
         @status = 500
-        @message = "Invalid JSON response: #{error.message}"
+        @message = "Invalid JSON response from API: #{error_message}"
         @payload = nil
       end
     end

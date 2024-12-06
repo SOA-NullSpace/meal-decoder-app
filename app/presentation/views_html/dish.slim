@@ -39,7 +39,7 @@ div.container.mt-5
     a.btn.btn-outline-primary.mr-2 href="/" 
       i.fa-solid.fa-arrow-left.mr-2
       | Back to Search
-    - if dish.has_ingredients?
+    - if dish.ingredients?
       button.btn.btn-success onclick="window.print()"
         i.fa-solid.fa-print.mr-2
         | Print Recipe
