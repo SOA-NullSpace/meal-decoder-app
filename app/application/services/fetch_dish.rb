@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'dry/monads'
+require 'dry/transaction'
 
 module MealDecoder
   module Services
@@ -54,54 +55,81 @@ module MealDecoder
         response.success? ? Success(response.payload) : Failure(response.message)
       end
 
-      def handle_response(response_data = {})
-        return Failure('No dish data returned from API') if response_data.empty?
+      def handle_response(response_data)
+        return Failure('No dish data returned from API') if response_data.nil? || response_data.empty?
 
-        Success(response_data)
+        # Extract dish data from the response
+        dish_data = response_data['data'] || response_data
+        Success(dish_data)
       rescue StandardError => error
         Failure("Could not process dish data: #{error.message}")
       end
     end
 
-    # Input handler for create dish operations
-    class CreateDishInput
-      def self.process(input)
-        dish_data = input.dig(:dish, 'name')
-        return Failure('Invalid dish data received from API') unless dish_data
-
-        session_manager = SessionManager.new(input[:session])
-        session_manager.add_dish(dish_data)
-        Success(input[:dish])
-      end
-    end
-
     # Service to create new dish and manage history
     class CreateDish
-      include Dry::Transaction
-
-      step :validate_input
-      step :fetch_from_api
-      step :update_history
+      include Dry::Monads[:result]
 
       def initialize
         @gateway = Gateway::Api.new(App.config)
-        @input_processor = CreateDishInput
+      end
+
+      def call(input)
+        validate(input)
+          .bind { |i| create_dish(i) }
+          .bind { |dish_data| update_session(input[:session], dish_data) }
       end
 
       private
 
-      def validate_input(input)
+      def validate(input)
+        return Failure('Dish name cannot be empty') if input[:dish_name].to_s.strip.empty?
+        return Failure('Session is required') unless input[:session]
+
         validation = Forms::NewDish.new.call(dish_name: input[:dish_name])
         validation.success? ? Success(input) : Failure(validation.errors.messages.join('; '))
       end
 
-      def fetch_from_api(input)
+      def create_dish(input)
         response = @gateway.create_dish(input[:dish_name])
-        ResponseHandler.handle_api_response(response, input)
+        if response.success?
+          Success(response.payload['data'] || response.payload)
+        else
+          Failure(response.message || 'Failed to create dish')
+        end
       end
 
-      def update_history(input)
-        @input_processor.process(input)
+      def update_session(session, dish_data)
+        return Failure('Invalid dish data') unless dish_data && dish_data['name']
+
+        session[:searched_dishes] ||= []
+        session[:searched_dishes].unshift(dish_data['name'])
+        session[:searched_dishes].uniq!
+
+        Success(dish_data)
+      rescue StandardError => e
+        Failure("Session update failed: #{e.message}")
+      end
+    end
+
+    # Session manager for dish history
+    class SessionManager
+      def initialize(session)
+        @session = session
+        @session[:searched_dishes] ||= []
+      end
+
+      def add_dish(dish_name)
+        return unless dish_name
+
+        searched_dishes.unshift(dish_name)
+        searched_dishes.uniq!
+      end
+
+      private
+
+      def searched_dishes
+        @session[:searched_dishes]
       end
     end
 
@@ -136,29 +164,6 @@ module MealDecoder
         Success('Dish successfully removed from history')
       rescue StandardError => error
         Failure("Failed to remove dish: #{error.message}")
-      end
-    end
-
-    # Handles session management for dish history
-    class SessionManager
-      def initialize(session)
-        @session = session
-        @session[:searched_dishes] ||= []
-      end
-
-      def add_dish(dish_name)
-        searched_dishes.unshift(dish_name)
-        searched_dishes.uniq!
-      end
-
-      def remove_dish(dish_name)
-        searched_dishes.delete(dish_name)
-      end
-
-      private
-
-      def searched_dishes
-        @session[:searched_dishes]
       end
     end
 

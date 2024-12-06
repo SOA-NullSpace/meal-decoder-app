@@ -40,13 +40,15 @@ module MealDecoder
     end
 
     # Result handling helper
-    class ResultHandler
+    module ResultHandler
+      include Dry::Monads[:result]
+
       def self.handle_service_result(result, routing)
         case result
-        when Success
-          yield(result.value!)
-        when Failure
-          handle_failure(result.failure, routing)
+        in Success(value)
+          yield(value)
+        in Failure(message)
+          handle_failure(message, routing)
         end
       end
 
@@ -83,17 +85,25 @@ module MealDecoder
       # POST /fetch_dish - Create or retrieve dish information
       routing.on 'fetch_dish' do
         routing.post do
-          puts "Received dish_name: #{routing.params['dish_name']}"
+          dish_name = routing.params['dish_name']
+          puts "Received dish_name: #{dish_name}"
 
           result = Services::CreateDish.new.call(
-            dish_name: routing.params['dish_name'],
-            session:
+            {
+              dish_name: dish_name,
+              session: session
+            }
           )
 
-          ResultHandler.handle_service_result(result, routing) do |dish_data|
+          if result.success?
+            dish_data = result.value!
             puts "Successfully created dish: #{dish_data}"
-            routing.flash[:success] = 'Successfully added new dish!'
+            flash[:success] = 'Successfully added new dish!'
             routing.redirect "/display_dish?name=#{CGI.escape(dish_data['name'])}"
+          else
+            puts "Failed to create dish: #{result.failure}"
+            flash[:error] = result.failure
+            routing.redirect '/'
           end
         end
       end
@@ -101,21 +111,19 @@ module MealDecoder
       # GET /display_dish - Show detailed dish information
       routing.on 'display_dish' do
         routing.get do
-          if App.environment == :production
-            response.expires 60, public: true
-            response.headers['Cache-Control'] = 'public, must-revalidate'
-          end
-
           dish_name = CGI.unescape(routing.params['name'].to_s)
           puts "Displaying dish: #{dish_name}"
 
           result = Services::FetchDish.new.call(dish_name)
 
-          ResultHandler.handle_service_result(result, routing) do |dish_data|
+          if result.success?
             view 'dish', locals: {
-              title_suffix: dish_data['name'],
-              dish: Views::Dish.new(dish_data)
+              title_suffix: result.value!['name'],
+              dish: Views::Dish.new(result.value!)
             }
+          else
+            flash[:error] = result.failure
+            routing.redirect '/'
           end
         end
       end
@@ -157,6 +165,12 @@ module MealDecoder
           routing.redirect '/'
         end
       end
+    end
+
+    private
+
+    def session
+      request.session
     end
   end
 end

@@ -49,11 +49,7 @@ module MealDecoder
       attr_reader :status, :message, :payload
 
       def initialize(http_response)
-        @status = nil
-        @message = nil
-        @payload = nil
-        @response = http_response
-        parse_response
+        process_response(http_response)
       end
 
       def success?
@@ -62,43 +58,34 @@ module MealDecoder
 
       private
 
-      def parse_response
-        case @response
+      def process_response(response)
+        case response
         when HTTP::Response
-          process_http_response
+          @status = response.code
+          if response.status.success?
+            process_successful_response(response)
+          else
+            process_error_response(response)
+          end
         end
-      rescue JSON::ParserError => parse_error
-        handle_parse_error(parse_error)
+      rescue JSON::ParserError => e
+        handle_parse_error(e)
       end
 
-      def process_http_response
-        puts "Raw response body: #{@response.body}"
-        if @response.status.success?
-          process_successful_response
-        else
-          process_error_response
-        end
-      end
-
-      def process_successful_response
-        body = JSON.parse(@response.body.to_s)
-        @status = @response.code
+      def process_successful_response(response)
+        body = JSON.parse(response.body.to_s)
         @message = body['message']
         @payload = body
-        puts "Parsed response payload: #{@payload}"
       end
 
-      def process_error_response
-        @status = @response.code
-        @message = "API Error: #{@response.status}"
+      def process_error_response(response)
+        @message = "API Error: #{response.status}"
         @payload = nil
-        puts "API Error response: #{@message}"
       end
 
-      def handle_parse_error(parse_error)
-        puts "JSON parsing error: #{parse_error.message}"
+      def handle_parse_error(error)
         @status = 500
-        @message = 'Invalid JSON response from API'
+        @message = "Invalid JSON response: #{error.message}"
         @payload = nil
       end
     end
@@ -124,7 +111,7 @@ module MealDecoder
       def create_dish(name)
         puts "Creating dish with name: #{name}"
         response = @request.post_json('dishes', { dish_name: name })
-        puts "Create dish response: #{response.inspect}"
+        puts "API Response: #{response.inspect}"
         response
       end
 
@@ -132,7 +119,7 @@ module MealDecoder
         puts "Fetching dish with name: #{name}"
         response = @request.get("dishes?q=#{name}")
         puts "Fetch dish response: #{response.inspect}"
-        response
+        handle_response(response)
       end
 
       def detect_text(image_path)
@@ -143,6 +130,17 @@ module MealDecoder
       end
 
       private
+
+      def handle_response(response)
+        return response if response.success?
+
+        # Enhanced error handling
+        OpenStruct.new(
+          success?: false,
+          message: response.message || 'API request failed',
+          payload: nil
+        )
+      end
 
       def process_image_detection(image_path)
         image_file = File.open(image_path, 'rb')
