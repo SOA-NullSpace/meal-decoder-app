@@ -49,6 +49,9 @@ module MealDecoder
       attr_reader :status, :message, :payload
 
       def initialize(http_response)
+        @status = nil
+        @message = nil
+        @payload = nil
         process_response(http_response)
       end
 
@@ -64,8 +67,8 @@ module MealDecoder
           @status = response.code
           process_by_status(response)
         end
-      rescue JSON::ParserError => e
-        handle_parse_error(e.message)
+      rescue JSON::ParserError => parse_error
+        handle_parse_error(parse_error.message)
       end
 
       def process_by_status(response)
@@ -94,76 +97,63 @@ module MealDecoder
       end
     end
 
-    # Main API Gateway class
-    class Api
-      # Creates properly formatted multipart form data objects for API requests
-      class FormData
-        def self.create(file, path)
-          HTTP::FormData::File.new(
-            file,
-            content_type: 'image/jpeg',
-            filename: File.basename(path)
-          )
-        end
-      end
-
-      def initialize(config)
-        @config = config
-        @request = Request.new(@config)
-      end
-
-      def create_dish(name)
-        puts "Creating dish with name: #{name}"
-        response = @request.post_json('dishes', { dish_name: name })
-        puts "API Response: #{response.inspect}"
-        response
-      end
-
-      def fetch_dish(name)
-        puts "Fetching dish with name: #{name}"
-        response = @request.get("dishes?q=#{name}")
-        puts "Fetch dish response: #{response.inspect}"
-        handle_response(response)
-      end
-
-      def detect_text(image_path)
-        puts "Detecting text from image: #{image_path}"
-        process_image_detection(image_path)
-      rescue StandardError => error
-        handle_detection_error(error)
-      end
-
-      private
-
-      def handle_response(response)
+    # Handles API response processing and error transformation
+    class ResponseHandler
+      def self.handle_response(response)
         return response if response.success?
 
-        # Enhanced error handling
         OpenStruct.new(
           success?: false,
           message: response.message || 'API request failed',
           payload: nil
         )
       end
+    end
 
-      def process_image_detection(image_path)
-        image_file = File.open(image_path, 'rb')
-        form_data = FormData.create(image_file, image_path)
-        @request.post_form('detect_text', { image_file: form_data })
-      ensure
-        image_file&.close
-      end
-
-      def handle_detection_error(error)
-        error_message = error.message
-        puts "Error in detect_text: #{error_message}"
-        puts error.backtrace.join("\n")
-
+    # Handles image processing errors
+    class ErrorHandler
+      def self.handle_detection_error(error_message)
         OpenStruct.new(
           success?: false,
           message: "Failed to process image: #{error_message}",
           status: 500
         )
+      end
+    end
+
+    # Main API Gateway for handling external service requests
+    class Api
+      def initialize(config)
+        @config = config
+        @request = Request.new(@config)
+        @response_handler = ResponseHandler
+      end
+
+      def create_dish(name)
+        puts "Creating dish with name: #{name}"
+        @response_handler.handle_response(@request.post_json('dishes', { dish_name: name }))
+      end
+
+      def fetch_dish(name)
+        puts "Fetching dish with name: #{name}"
+        @response_handler.handle_response(@request.get("dishes?q=#{name}"))
+      end
+
+      def detect_text(image_path)
+        puts "Detecting text from image: #{image_path}"
+        process_image_detection(image_path)
+      rescue StandardError => detected_error
+        ErrorHandler.handle_detection_error(detected_error.message)
+      end
+
+      private
+
+      def process_image_detection(image_path)
+        image_file = File.open(image_path, 'rb')
+        form_data = FormData.create(image_file, image_path)
+        @response_handler.handle_response(@request.post_form('detect_text', { image_file: form_data }))
+      ensure
+        image_file&.close
       end
     end
   end

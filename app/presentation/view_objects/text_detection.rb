@@ -2,11 +2,17 @@
 
 module MealDecoder
   module Views
-    # View object for text detection results
+    # Handles text formatting operations for display purposes
+    class TextFormatter
+      def self.format_display_text(line)
+        line.split.map(&:capitalize).join(' ')
+      end
+    end
+
+    # Manages text detection results and processing
     class TextDetection
       def initialize(text_result)
         @text_result = text_result.to_s
-        puts "Initializing TextDetection with: #{@text_result}"
       end
 
       def empty?
@@ -17,7 +23,7 @@ module MealDecoder
         @lines ||= @text_result
           .split("\n")
           .map(&:strip)
-          .reject { |line| line.empty? || line.match?(/[\(\)]/) }  # Remove empty lines and parenthetical content
+          .reject { |line| line.empty? || line.match?(/[\(\)]/) }
           .uniq
       end
 
@@ -29,20 +35,14 @@ module MealDecoder
         return enum_for(:each_selectable_line) unless block_given?
 
         lines.each_with_index do |line, index|
-          next if line.match?(/[,\.]/) || line.downcase == 'cola'  # Skip lines with punctuation or non-dish items
+          next if line.match?(/[,\.]/) || line.downcase == 'cola'
 
           yield(
             id: "text_#{index}",
             value: line,
-            display_text: format_display_text(line)
+            display_text: TextFormatter.format_display_text(line)
           )
         end
-      end
-
-      private
-
-      def format_display_text(line)
-        line.split(/[\(\)]/).first.strip
       end
     end
   end

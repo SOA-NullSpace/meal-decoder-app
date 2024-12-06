@@ -2,20 +2,49 @@
 
 module MealDecoder
   module Views
-    # View for dish presentation
-    class Dish
-      attr_reader :id, :name, :total_calories
-
+    # Presents raw dish data in a structured format
+    class DishPresenter
       def initialize(data)
-        @id = data['id']
-        @name = data['name']
-        @raw_ingredients = data['ingredients'] || []
-        @total_calories = data['total_calories'].to_i
-        @calorie_level = data['calorie_level']
+        @raw_data = data
+      end
+
+      def name
+        @raw_data['name']
+      end
+
+      def id
+        @raw_data['id']
+      end
+
+      def total_calories
+        @raw_data['total_calories'].to_i
+      end
+
+      def calorie_level
+        @raw_data['calorie_level']
+      end
+
+      def raw_ingredients
+        @raw_data['ingredients'] || []
+      end
+    end
+
+    # View object representing a dish with its presentation logic
+    class Dish
+      def initialize(data)
+        @presenter = DishPresenter.new(data)
+      end
+
+      def id
+        @presenter.id
+      end
+
+      def name
+        @presenter.name
       end
 
       def ingredients
-        @ingredients ||= @raw_ingredients.map { |ing| Ingredient.new(name: ing) }
+        @ingredients ||= @presenter.raw_ingredients.map { |ing| Ingredient.new(name: ing) }
       end
 
       def ingredients?
@@ -24,6 +53,10 @@ module MealDecoder
 
       def ingredients_count
         ingredients.size
+      end
+
+      def total_calories
+        @presenter.total_calories
       end
 
       def calorie_class
@@ -35,11 +68,17 @@ module MealDecoder
       end
 
       def calorie_level
-        @calorie_level || case total_calories
-                          when 0..400 then 'Low Calorie'
-                          when 401..700 then 'Medium Calorie'
-                          else 'High Calorie'
-                          end
+        @presenter.calorie_level || calculate_calorie_level
+      end
+
+      private
+
+      def calculate_calorie_level
+        case total_calories
+        when 0..400 then 'Low Calorie'
+        when 401..700 then 'Medium Calorie'
+        else 'High Calorie'
+        end
       end
     end
   end
