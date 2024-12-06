@@ -242,9 +242,28 @@ module MealDecoder
       end
     end
 
+    # Validates and processes images
+    class ImageProcessor
+      def initialize(file)
+        @file = file
+      end
+
+      def valid?
+        @file && @file[:tempfile]
+      end
+
+      def attributes
+        {
+          tempfile: @file[:tempfile],
+          type: @file[:type],
+          filename: @file[:filename]
+        }
+      end
+    end
+
     # Service to process menu image uploads
     class DetectMenuText
-      include Dry::Monads[:result]
+      include Dry::Monads[:result, :maybe]
 
       def initialize
         @validator = ImageValidator.new
@@ -271,10 +290,8 @@ module MealDecoder
       end
 
       def extract_text(response)
-        text_data = response['data']
-        return Failure('No text detected in image') if text_data.nil? || text_data.empty?
-
-        Success(text_data)
+        Maybe(response['data']).to_result(:empty_text)
+          .or(Failure('No text detected in image'))
       end
     end
 
@@ -287,24 +304,18 @@ module MealDecoder
       end
 
       def validate(image_file)
-        return Failure('No image file provided') unless valid_file?(image_file)
+        processor = ImageProcessor.new(image_file)
+        return Failure('No image file provided') unless processor.valid?
 
-        result = @validation_form.call(image_file: image_attributes(image_file))
-        result.success? ? Success(image_file) : Failure(result.errors.messages.join('; '))
+        validate_with_processor(processor)
       end
 
       private
 
-      def valid_file?(file)
-        file && file[:tempfile]
-      end
-
-      def image_attributes(file)
-        {
-          tempfile: file[:tempfile],
-          type: file[:type],
-          filename: file[:filename]
-        }
+      def validate_with_processor(processor)
+        attributes = processor.attributes
+        result = @validation_form.call(image_file: attributes)
+        result.success? ? Success(attributes) : Failure(result.errors.messages.join('; '))
       end
     end
   end

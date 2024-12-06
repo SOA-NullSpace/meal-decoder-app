@@ -121,7 +121,63 @@ module MealDecoder
       end
     end
 
-    # Main API Gateway for handling external service requests
+    # Handles creating standardized error responses for API failures
+    class ErrorResponse
+      def self.create(error_message)
+        OpenStruct.new(
+          success?: false,
+          message: "Failed to process image: #{error_message}",
+          status: 500
+        )
+      end
+    end
+
+    # Creates form data for image file uploads
+    class FormDataCreator
+      def initialize(file, path)
+        @file = file
+        @path = path
+        @content_type = 'image/jpeg'
+      end
+
+      def create
+        HTTP::FormData::File.new(
+          @file,
+          filename: filename,
+          content_type: @content_type
+        )
+      end
+
+      private
+
+      def filename
+        File.basename(@path)
+      end
+    end
+
+    # Handles image file upload operations including form data creation
+    class ImageUploader
+      def initialize(request, creator_class: FormDataCreator)
+        @request = request
+        @creator_class = creator_class
+      end
+
+      def upload(image_path)
+        image_file = File.open(image_path, 'rb')
+        form_data = create_form_data(image_file, image_path)
+        @request.post_form('detect_text', { image_file: form_data })
+      ensure
+        image_file&.close
+      end
+
+      private
+
+      def create_form_data(file, path)
+        @creator_class.new(file, path).create
+      end
+    end
+
+    # Main API Gateway handling all external service requests
     class Api
       def initialize(config)
         @config = config
@@ -140,27 +196,10 @@ module MealDecoder
 
       def detect_text(image_path)
         puts "Detecting text from image: #{image_path}"
-        image_file = File.open(image_path, 'rb')
-        form_data = HTTP::FormData::File.new(
-          image_file,
-          filename: File.basename(image_path),
-          content_type: 'image/jpeg'
-        )
-        @request.post_form('detect_text', { image_file: form_data })
+        uploader = ImageUploader.new(@request)
+        uploader.upload(image_path)
       rescue StandardError => error
-        handle_detection_error(error)
-      ensure
-        image_file&.close
-      end
-
-      private
-
-      def handle_detection_error(error)
-        OpenStruct.new(
-          success?: false,
-          message: "Failed to process image: #{error.message}",
-          status: 500
-        )
+        ErrorResponse.create(error.message)
       end
     end
   end
