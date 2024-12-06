@@ -36,10 +36,10 @@ module MealDecoder
 
       def calorie_level
         @calorie_level || case total_calories
-                         when 0..400 then 'Low Calorie'
-                         when 401..700 then 'Medium Calorie'
-                         else 'High Calorie'
-                         end
+                          when 0..400 then 'Low Calorie'
+                          when 401..700 then 'Medium Calorie'
+                          else 'High Calorie'
+                          end
       end
     end
   end
