@@ -64,7 +64,8 @@ module MealDecoder
 
       # GET / - Home page with search history
       routing.root do
-        response.cache_control public: true, max_age: 60
+        # Disable caching for dynamic content
+        response.headers['Cache-Control'] = 'no-store'
         session[:searched_dishes] ||= []
         puts "Current session dishes: #{session[:searched_dishes]}"
 
@@ -151,23 +152,31 @@ module MealDecoder
         routing.delete do
           dish_name = CGI.unescape(encoded_dish_name)
           result = Services::RemoveDish.new.call(
-            dish_name:,
-            session:
+            dish_name: dish_name,
+            session: session
           )
 
-          ResultHandler.handle_service_result(result, routing) do |_|
-            routing.flash[:success] = 'Dish removed from history'
-            routing.redirect '/'
+          case result
+          in Success(_)
+            # Clear caches and set no-cache headers
+            response.headers['Cache-Control'] = 'no-cache, no-store'
+            flash[:success] = 'Dish removed from history'
+          in Failure(message)
+            response.status = 400
+            flash[:error] = "Failed to remove dish: #{message}"
           end
-        rescue StandardError => error
-          puts "DELETE DISH ERROR: #{error.message}"
-          routing.flash[:error] = 'Error occurred while removing dish'
-          routing.redirect '/'
+
+          # Force reload of home page
+          routing.redirect '/', 303
         end
       end
     end
 
     private
+
+    def flash
+      request.session['flash'] ||= {}
+    end
 
     def session
       request.session

@@ -120,10 +120,16 @@ module MealDecoder
       end
 
       def add_dish(dish_name)
-        return unless dish_name
-
         searched_dishes.unshift(dish_name)
         searched_dishes.uniq!
+      end
+
+      def remove_dish(dish_name)
+        puts "Removing dish from session: #{dish_name}"
+        puts "Before removal: #{searched_dishes}"
+        removed = searched_dishes.delete(dish_name)
+        puts "After removal: #{searched_dishes}"
+        removed ? true : false
       end
 
       private
@@ -180,10 +186,17 @@ module MealDecoder
       include Dry::Monads[:result]
 
       def call(dish_name:, session:)
-        SessionManager.new(session).remove_dish(dish_name)
-        Success('Dish successfully removed from history')
-      rescue StandardError => error
-        Failure("Failed to remove dish: #{error.message}")
+        return Failure('Dish name cannot be empty') if dish_name.to_s.strip.empty?
+        return Failure('Session is required') if session.nil?
+
+        manager = SessionManager.new(session)
+        if manager.remove_dish(dish_name)
+          Success('Dish successfully removed from history')
+        else
+          Failure("Could not find dish '#{dish_name}' in history")
+        end
+      rescue StandardError => e
+        Failure("Failed to remove dish: #{e.message}")
       end
     end
 
