@@ -4,6 +4,8 @@ module MealDecoder
   module Views
     # View object for an ingredient
     class Ingredient
+      attr_reader :name
+
       CALORIE_MAP = {
         'beef|pork|lamb'                => 250,
         'chicken|turkey|duck'           => 165,
@@ -16,26 +18,18 @@ module MealDecoder
 
       DEFAULT_CALORIES = 100
 
-      attr_reader :name, :amount, :unit
-
-      def initialize(entity)
-        @name = entity.name
-        @amount = entity.amount
-        @unit = entity.unit
+      def initialize(name:, amount: nil, unit: nil)
+        @name = name
+        @amount = amount
+        @unit = unit
       end
 
-      def formatted_amount
-        return @name unless @amount || @unit
-
-        [@amount, @unit, @name].compact.join(' ')
+      def to_s
+        name
       end
 
       def display_calories
         "#{calculate_calories} cal"
-      end
-
-      def to_s
-        formatted_amount
       end
 
       private
