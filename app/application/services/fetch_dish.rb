@@ -20,7 +20,7 @@ module MealDecoder
       end
 
       def self.validate_dish_data(dish_data)
-        dish_data && dish_data['name'].to_s.strip.present?
+        dish_data && !dish_data['name'].to_s.strip.empty?
       end
     end
 
@@ -272,7 +272,7 @@ module MealDecoder
 
       def extract_text(response)
         text_data = response['data']
-        return Failure('No text detected in image') unless text_data && !text_data.empty?
+        return Failure('No text detected in image') if text_data.nil? || text_data.empty?
 
         Success(text_data)
       end
@@ -284,34 +284,26 @@ module MealDecoder
 
       def initialize
         @validation_form = Forms::ImageFileUpload.new
-        @image_file = nil
       end
 
       def validate(image_file)
-        @image_file = image_file
-        return Failure('No image file provided') unless valid_file?
+        return Failure('No image file provided') unless valid_file?(image_file)
 
-        validate_with_form
+        result = @validation_form.call(image_file: image_attributes(image_file))
+        result.success? ? Success(image_file) : Failure(result.errors.messages.join('; '))
       end
 
       private
 
-      attr_reader :image_file
-
-      def valid_file?
-        image_file && image_file[:tempfile]
+      def valid_file?(file)
+        file && file[:tempfile]
       end
 
-      def validate_with_form
-        validation = @validation_form.call(image_file: image_attributes)
-        validation.success? ? Success(image_file) : Failure(validation.errors.messages.join('; '))
-      end
-
-      def image_attributes
+      def image_attributes(file)
         {
-          tempfile: image_file[:tempfile],
-          type: image_file[:type],
-          filename: image_file[:filename]
+          tempfile: file[:tempfile],
+          type: file[:type],
+          filename: file[:filename]
         }
       end
     end

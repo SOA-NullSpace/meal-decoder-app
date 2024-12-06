@@ -126,34 +126,41 @@ module MealDecoder
       def initialize(config)
         @config = config
         @request = Request.new(@config)
-        @response_handler = ResponseHandler
       end
 
       def create_dish(name)
         puts "Creating dish with name: #{name}"
-        @response_handler.handle_response(@request.post_json('dishes', { dish_name: name }))
+        @request.post_json('dishes', { dish_name: name })
       end
 
       def fetch_dish(name)
         puts "Fetching dish with name: #{name}"
-        @response_handler.handle_response(@request.get("dishes?q=#{name}"))
+        @request.get("dishes?q=#{name}")
       end
 
       def detect_text(image_path)
         puts "Detecting text from image: #{image_path}"
-        process_image_detection(image_path)
-      rescue StandardError => detected_error
-        ErrorHandler.handle_detection_error(detected_error.message)
+        image_file = File.open(image_path, 'rb')
+        form_data = HTTP::FormData::File.new(
+          image_file,
+          filename: File.basename(image_path),
+          content_type: 'image/jpeg'
+        )
+        @request.post_form('detect_text', { image_file: form_data })
+      rescue StandardError => error
+        handle_detection_error(error)
+      ensure
+        image_file&.close
       end
 
       private
 
-      def process_image_detection(image_path)
-        image_file = File.open(image_path, 'rb')
-        form_data = FormData.create(image_file, image_path)
-        @response_handler.handle_response(@request.post_form('detect_text', { image_file: form_data }))
-      ensure
-        image_file&.close
+      def handle_detection_error(error)
+        OpenStruct.new(
+          success?: false,
+          message: "Failed to process image: #{error.message}",
+          status: 500
+        )
       end
     end
   end

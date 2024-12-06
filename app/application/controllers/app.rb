@@ -132,22 +132,23 @@ module MealDecoder
       end
 
       # POST /detect_text - Process menu image
-      routing.on 'dish', String do |encoded_dish_name|
-        routing.delete do
-          dish_name = CGI.unescape(encoded_dish_name)
-          result = Services::RemoveDish.new.call(
-            dish_name: dish_name,
-            session: session
-          )
+      routing.on 'detect_text' do
+        routing.post do
+          result = Services::DetectMenuText.new.call(routing.params['image_file'])
 
           case result
-          in Success(_)
-            response.headers['Cache-Control'] = 'no-cache, no-store'
-            flash[:success] = 'Dish removed from history'
+          in Success(text_data)
+            view 'display_text', locals: {
+              title_suffix: 'Text Detection',
+              text: Views::TextDetection.new(text_data)
+            }
           in Failure(message)
-            response.status = 400
             flash[:error] = message
+            routing.redirect '/?flash=keep', 303
           end
+        rescue StandardError => error
+          puts "TEXT DETECTION ERROR: #{error.message}"
+          flash[:error] = 'Error occurred while processing the image'
           routing.redirect '/?flash=keep', 303
         end
       end

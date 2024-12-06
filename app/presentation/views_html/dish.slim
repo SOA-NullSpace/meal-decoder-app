@@ -6,7 +6,7 @@ div.container.mt-5
         = dish.calorie_level
         span.ml-2 = "#{dish.total_calories} cal"
 
-  - if !dish.has_ingredients?
+  - if !dish.ingredients?
     .alert.alert-warning
       i.fa-solid.fa-exclamation-triangle.mr-2
       | No ingredients found for this dish.
