@@ -15,8 +15,8 @@ module MealDecoder
     plugin :json_parser
     plugin :environments
     plugin :render, engine: 'slim', views: 'app/presentation/views_html'
-    plugin :public, root: 'app/presentation/assets'
-    plugin :static, ['/assets']
+    plugin :public, root: 'app/presentation/public'
+    plugin :assets, path: 'app/presentation/assets', css: 'style.css'
     plugin :flash
     plugin :all_verbs
     plugin :request_headers
@@ -113,8 +113,9 @@ module MealDecoder
     route do |routing|
       @current_route = routing  # Save routing for helper methods
 
+      routing.assets # load CSS
       response['Content-Type'] = 'text/html; charset=utf-8'
-      routing.public
+      routing.public # load favicon
 
       # GET / - Home page with search history
       routing.root do
