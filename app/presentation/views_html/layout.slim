@@ -1,3 +1,4 @@
+/ app/presentation/views_html/layout.slim
 doctype html
 html
   head
@@ -10,10 +11,23 @@ html
     script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.16.0/umd/popper.min.js"
     script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"
     script src="https://kit.fontawesome.com/8d887fdc9a.js" crossorigin="anonymous"
+    script src="#{MealDecoder::App.config.API_HOST}/faye/faye.js"
+
+    / React dependencies
+    script src="https://unpkg.com/react@17/umd/react.production.min.js" 
+    script src="https://unpkg.com/react-dom@17/umd/react-dom.production.min.js"
+    
+    / Application scripts
+    script src="../assets/js/layout.js"
+    script src="../assets/js/components/ProgressTracker.js"
+
     title 
       | Meal Decoder
       - if defined?(title_suffix)
         | - #{title_suffix}
+    
+    
+
   body
     main.container.mt-4
       == render :flash_bar

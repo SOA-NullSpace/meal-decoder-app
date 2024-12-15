@@ -1,14 +1,164 @@
-# app/infrastructure/gateways/api_gateway.rb
-require 'http'
-
-# app/infrastructure/gateways/api.rb
-# app/infrastructure/gateways/api.rb
-
+# app/infrastructure/api.rb
 require 'http'
 
 module MealDecoder
   module Gateway
-    # HTTP request handling
+    class Api
+      def initialize(config)
+        @config = config
+        @request = Request.new(@config)
+      end
+
+      def create_dish(name)
+        puts "Creating dish with name: #{name}"
+        begin
+          response = @request.post('dishes', {
+                                     dish_name: name.strip
+                                   })
+
+          case response.status
+          when 201, 202
+            Response.new(response)
+          else
+            puts "Error creating dish: #{response.status} - #{response.message}"
+            OpenStruct.new(
+              success?: false,
+              message: response.message || 'Failed to create dish',
+              status: response.status
+            )
+          end
+        rescue StandardError => e
+          puts "Exception in create_dish: #{e.message}"
+          puts e.backtrace
+          OpenStruct.new(
+            success?: false,
+            message: "Service error: #{e.message}",
+            status: 500
+          )
+        end
+      end
+
+      def fetch_dish(name_or_id)
+        puts "Fetching dish: #{name_or_id}"
+        begin
+          # If it's a name, use the search endpoint
+          endpoint = name_or_id.is_a?(Integer) ? "dishes/#{name_or_id}" : "dishes?q=#{CGI.escape(name_or_id.to_s)}"
+          response = @request.get(endpoint)
+
+          parsed_response = Response.new(response)
+
+          if parsed_response.success?
+            # If we got a list of dishes, find the matching one
+            if parsed_response.payload['recent_dishes']
+              dish = parsed_response.payload['recent_dishes'].find do |d|
+                d['name'].downcase == name_or_id.to_s.downcase || d['id'].to_s == name_or_id.to_s
+              end
+
+              if dish
+                return OpenStruct.new(
+                  success?: true,
+                  payload: dish,
+                  message: 'Dish found',
+                  status: 200
+                )
+              end
+            end
+
+            # If we got a single dish directly
+            if parsed_response.payload['name']
+              return OpenStruct.new(
+                success?: true,
+                payload: parsed_response.payload,
+                message: 'Dish found',
+                status: 200
+              )
+            end
+          end
+
+          OpenStruct.new(
+            success?: false,
+            message: 'Dish not found',
+            status: 404
+          )
+        rescue StandardError => e
+          puts "Error fetching dish: #{e.message}"
+          puts e.backtrace
+          OpenStruct.new(
+            success?: false,
+            message: "Failed to fetch dish: #{e.message}",
+            status: 500
+          )
+        end
+      end
+
+      def detect_text(image_path)
+        puts "Starting text detection for image: #{image_path}"
+
+        unless File.exist?(image_path)
+          puts "Image file not found: #{image_path}"
+          return OpenStruct.new(
+            success?: false,
+            message: 'Image file not found',
+            status: 404,
+            payload: nil
+          )
+        end
+
+        begin
+          # Create form data with the image file
+          form_data = {
+            'image_file' => HTTP::FormData::File.new(
+              image_path,
+              filename: File.basename(image_path),
+              content_type: 'image/jpeg'
+            )
+          }
+
+          # Send request to your API service
+          response = HTTP.post(
+            "#{@config.API_HOST}/api/v1/detect_text",
+            form: form_data
+          )
+
+          if response.status.success?
+            body = JSON.parse(response.body.to_s)
+            OpenStruct.new(
+              success?: true,
+              message: body['message'] || 'Text detected successfully',
+              status: response.status.code,
+              payload: body
+            )
+          else
+            OpenStruct.new(
+              success?: false,
+              message: "API error: #{response.status.reason}",
+              status: response.status.code,
+              payload: nil
+            )
+          end
+        rescue StandardError => e
+          puts "Text detection error: #{e.class} - #{e.message}"
+          puts e.backtrace
+
+          OpenStruct.new(
+            success?: false,
+            message: "Failed to detect text: #{e.message}",
+            status: 500,
+            payload: nil
+          )
+        end
+      end
+
+      private
+
+      def log_response(response)
+        puts "API Response Status: #{response.status}"
+        puts "API Response Body: #{response.body}"
+      rescue StandardError => e
+        puts "Error logging response: #{e.message}"
+      end
+    end
+
     class Request
       def initialize(config)
         @api_host = config.API_HOST
@@ -16,29 +166,15 @@ module MealDecoder
       end
 
       def get(url)
-        result = HTTP.headers(headers).get("#{@api_root}/#{url}")
-        Response.new(result)
+        HTTP.headers(headers).get("#{@api_root}/#{url}")
       end
 
-      # def post(url, data, content_type = :json)
-      #   if content_type == :json
-      #     result = HTTP.headers(headers)
-      #                .post("#{@api_root}/#{url}", json: data)
-      #   else
-      #     result = HTTP.headers(form_headers)
-      #                .post("#{@api_root}/#{url}", form: data)
-      #   end
-      #   Response.new(result)
-      # end
-      def post(url, data, content_type = :json)
-        if content_type == :form
-          result = HTTP.headers(form_headers)
-                      .post("#{@api_root}/#{url}", form: data)
-        else
-          result = HTTP.headers(headers)
-                      .post("#{@api_root}/#{url}", json: data)
-        end
-        Response.new(result)
+      def post(url, data)
+        HTTP.headers(headers)
+            .post("#{@api_root}/#{url}", json: data)
+      rescue HTTP::Error => e
+        puts "HTTP Error in post request: #{e.message}"
+        raise
       end
 
       private
@@ -49,15 +185,8 @@ module MealDecoder
           'Content-Type' => 'application/json'
         }
       end
-
-      def form_headers
-        {
-          'Accept' => 'application/json'
-        }
-      end
     end
 
-    # Response wrapper
     class Response
       attr_reader :status, :message, :payload
 
@@ -67,7 +196,7 @@ module MealDecoder
       end
 
       def success?
-        [200, 201].include?(@status)
+        [200, 201, 202].include?(@status)
       end
 
       private
@@ -75,7 +204,7 @@ module MealDecoder
       def parse_response
         case @response
         when HTTP::Response
-          puts "Raw response body: #{@response.body.to_s}"
+          puts "Raw response body: #{@response.body}"
           if @response.status.success?
             body = JSON.parse(@response.body.to_s)
             @status = @response.code
@@ -94,65 +223,6 @@ module MealDecoder
         @status = 500
         @message = 'Invalid JSON response from API'
         @payload = nil
-      end
-    end
-
-    # Main API Gateway class
-    class Api
-      def initialize(config)
-        @config = config
-        @request = Request.new(@config)
-      end
-
-      def create_dish(name)
-        puts "Creating dish with name: #{name}"
-        response = @request.post('dishes', { dish_name: name })
-        puts "Create dish response: #{response.inspect}"
-        response
-      end
-
-      def fetch_dish(name)
-        puts "Fetching dish with name: #{name}"
-        response = @request.get("dishes?q=#{name}")
-        puts "Fetch dish response: #{response.inspect}"
-        response
-      end
-
-      # def detect_text(image_path)
-      #   form_data = HTTP::FormData::File.new(image_path)
-      #   @request.post('detect_text', { image_file: form_data }, :form)
-      # end
-
-      def detect_text(image_path)
-        puts "Detecting text from image: #{image_path}"
-        begin
-          # Create form data with proper content type and filename
-          image_file = File.open(image_path, 'rb')
-          form_data = HTTP::FormData::File.new(
-            image_file,
-            content_type: 'image/jpeg',  # Adjust based on actual file type
-            filename: File.basename(image_path)
-          )
-
-          # Build proper multipart form data
-          form = {
-            image_file: form_data
-          }
-          
-          response = @request.post('detect_text', form, :form)
-          puts "Image upload response: #{response.inspect}"
-          response
-        rescue => e
-          puts "Error in detect_text: #{e.message}"
-          puts e.backtrace.join("\n")
-          OpenStruct.new(
-            success?: false,
-            message: "Failed to process image: #{e.message}",
-            status: 500
-          )
-        ensure
-          image_file&.close
-        end
       end
     end
   end
