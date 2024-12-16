@@ -1,125 +1,237 @@
-import React, { useState, useEffect } from "react";
+import { useState } from "react";
 
-export default function ProgressTracker({
-  channelId,
-  fayeEndpoint,
-  onComplete,
-  onError,
-}) {
+export default function MenuDecoder() {
+  // States for dish form
+  const [dishName, setDishName] = useState("");
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [error, setError] = useState("");
+  const [progressInfo, setProgressInfo] = useState(null);
+
+  // States for detected text
+  const [detectedText, setDetectedText] = useState([]);
+  const [showTextSelection, setShowTextSelection] = useState(false);
+
+  // Progress tracking
   const [progress, setProgress] = useState(0);
-  const [message, setMessage] = useState("Initializing...");
-  const [error, setError] = useState(null);
+  const [progressMessage, setProgressMessage] = useState("");
 
-  useEffect(() => {
-    // Load Faye client script dynamically
-    const script = document.createElement("script");
-    script.src = `${fayeEndpoint}/faye/faye.js`;
-    script.async = true;
+  // Handle direct dish name submission
+  const handleDishSubmit = async (e) => {
+    e.preventDefault();
+    if (!dishName.trim()) return;
 
-    script.onload = () => {
-      // Initialize Faye client after script loads
-      try {
-        const fayeClient = new window.Faye.Client(fayeEndpoint, {
-          timeout: 120,
-          retry: 5,
-        });
+    setIsProcessing(true);
+    setError("");
 
-        // Subscribe to progress channel
-        const subscription = fayeClient.subscribe(
-          `/progress/${channelId}`,
-          (data) => {
-            try {
-              const parsedData =
-                typeof data === "string" ? JSON.parse(data) : data;
+    try {
+      const response = await fetch("/api/v1/dishes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dish_name: dishName }),
+      });
 
-              if (parsedData.error) {
-                setError(parsedData.error);
-                onError && onError(parsedData.error);
-                return;
-              }
+      const result = await response.json();
 
-              const percent = parseInt(parsedData.percentage || 0, 10);
-              setProgress(percent);
-              setMessage(parsedData.message || "Processing...");
+      if (response.ok) {
+        if (result.status === "processing") {
+          setupProgressTracking(result.progress);
+        } else {
+          window.location.href = `/display_dish?name=${encodeURIComponent(
+            dishName
+          )}`;
+        }
+      } else {
+        setError(result.message || "Failed to process dish");
+        setIsProcessing(false);
+      }
+    } catch (err) {
+      setError("Error submitting dish");
+      setIsProcessing(false);
+    }
+  };
 
-              if (percent === 100) {
-                setTimeout(() => {
-                  onComplete && onComplete();
-                }, 1000);
-              }
-            } catch (err) {
-              console.error("Progress data parsing error:", err);
-              setError("Failed to process update");
-              onError && onError("Failed to process update");
-            }
-          }
-        );
+  // Handle image upload
+  const handleImageUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
 
-        // Connection status handling
-        fayeClient.on("transport:up", () => {
-          setMessage("Connected to processing server...");
-        });
+    const formData = new FormData();
+    formData.append("image_file", file);
 
-        fayeClient.on("transport:down", () => {
-          setMessage("Reconnecting to server...");
-        });
+    setIsProcessing(true);
+    setError("");
 
-        // Cleanup subscription
-        return () => {
-          subscription.cancel();
-          fayeClient.disconnect();
-        };
-      } catch (err) {
-        console.error("Faye client error:", err);
-        setError("Failed to connect to progress tracker");
-        onError && onError("Failed to connect to progress tracker");
+    try {
+      const response = await fetch("/api/v1/detect_text", {
+        method: "POST",
+        body: formData,
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.status === "success") {
+        setDetectedText(result.data);
+        setShowTextSelection(true);
+      } else {
+        setError(result.message || "Failed to process image");
+      }
+    } catch (err) {
+      setError("Error uploading image");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // Setup WebSocket progress tracking
+  const setupProgressTracking = (progressInfo) => {
+    if (!progressInfo?.channel || !progressInfo?.endpoint) return;
+
+    const wsUrl = progressInfo.endpoint.replace("http", "ws");
+    const socket = new WebSocket(wsUrl);
+
+    socket.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      setProgress(data.percentage || 0);
+      setProgressMessage(data.message || "Processing...");
+
+      if (data.percentage === 100) {
+        setTimeout(() => {
+          window.location.href = `/display_dish?name=${encodeURIComponent(
+            dishName
+          )}`;
+        }, 500);
       }
     };
 
-    script.onerror = () => {
-      setError("Failed to load progress tracking system");
-      onError && onError("Failed to load progress tracking system");
+    socket.onerror = () => {
+      setError("Lost connection to server");
+      setIsProcessing(false);
     };
-
-    document.body.appendChild(script);
-
-    return () => {
-      document.body.removeChild(script);
-    };
-  }, [channelId, fayeEndpoint, onComplete, onError]);
+  };
 
   return (
-    <div className="progress-container p-4">
-      <div className="text-center mb-4">
-        <h4 className="text-muted">{message}</h4>
-      </div>
-
-      <div className="progress">
-        <div
-          className={`progress-bar progress-bar-striped ${
-            error ? "bg-danger" : "bg-success"
-          } ${!error && progress < 100 ? "progress-bar-animated" : ""}`}
-          role="progressbar"
-          style={{ width: `${progress}%` }}
-          aria-valuenow={progress}
-          aria-valuemin="0"
-          aria-valuemax="100"
-        >
-          {progress}%
+    <div className="container mt-5">
+      <header className="mb-4">
+        <div className="d-flex justify-content-center">
+          <h1 className="mb-0">Meal Decoder</h1>
         </div>
-      </div>
+      </header>
+
+      <section className="search-section mb-5">
+        <div className="card">
+          <div className="card-body">
+            <h2 className="h4 mb-4">Decode Dish Name</h2>
+            <form onSubmit={handleDishSubmit}>
+              <div className="form-group">
+                <label className="font-weight-bold" htmlFor="dish_name">
+                  Enter the dish name:
+                </label>
+                <input
+                  type="text"
+                  id="dish_name"
+                  className="form-control"
+                  value={dishName}
+                  onChange={(e) => setDishName(e.target.value)}
+                  placeholder="E.g., Spaghetti Carbonara"
+                  required
+                />
+                <small className="form-text text-muted">
+                  Only letters and spaces are allowed.
+                </small>
+              </div>
+              <button
+                type="submit"
+                className="btn btn-primary btn-block"
+                disabled={isProcessing}
+              >
+                {isProcessing ? (
+                  <span>
+                    <i className="fa-solid fa-spinner fa-spin mr-2"></i>
+                    Processing...
+                  </span>
+                ) : (
+                  <span>
+                    <i className="fa-solid fa-search mr-2"></i>
+                    Decode Ingredients
+                  </span>
+                )}
+              </button>
+            </form>
+          </div>
+        </div>
+      </section>
+
+      <section className="image-upload-section mb-5">
+        <div className="card">
+          <div className="card-body">
+            <h2 className="h4 mb-4">Decode Menu Image</h2>
+            <div className="custom-file mb-3">
+              <input
+                type="file"
+                className="custom-file-input"
+                id="image_file"
+                accept="image/*"
+                onChange={handleImageUpload}
+              />
+              <label className="custom-file-label" htmlFor="image_file">
+                <i className="fa-solid fa-upload mr-2"></i>
+                Choose file...
+              </label>
+            </div>
+            <small className="form-text text-muted mt-2">
+              Supported formats: JPG, PNG, GIF
+            </small>
+          </div>
+        </div>
+      </section>
+
+      {showTextSelection && detectedText.length > 0 && (
+        <section className="detected-text-section mb-5">
+          <div className="card">
+            <div className="card-header bg-light">
+              <h3 className="h5 mb-0">
+                Detected Menu Items ({detectedText.length})
+              </h3>
+            </div>
+            <div className="card-body">
+              <div className="list-group">
+                {detectedText.map((text, index) => (
+                  <button
+                    key={index}
+                    className="list-group-item list-group-item-action"
+                    onClick={() => {
+                      setDishName(text);
+                      setShowTextSelection(false);
+                      window.scrollTo({ top: 0, behavior: "smooth" });
+                    }}
+                  >
+                    {text}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
 
       {error && (
-        <div className="alert alert-danger mt-4">
-          <p className="mb-1">
-            <strong>Error:</strong> {error}
-          </p>
-          <button
-            onClick={() => window.location.reload()}
-            className="btn btn-sm btn-outline-danger"
-          >
-            Retry
-          </button>
+        <div className="alert alert-danger" role="alert">
+          <i className="fa-solid fa-exclamation-triangle mr-2"></i>
+          {error}
+        </div>
+      )}
+
+      {progressInfo && (
+        <div className="progress-container mt-4">
+          <div className="progress">
+            <div
+              className="progress-bar progress-bar-striped progress-bar-animated"
+              style={{ width: `${progress}%` }}
+            >
+              {progress}%
+            </div>
+          </div>
+          <p className="text-center text-muted mt-2">{progressMessage}</p>
         </div>
       )}
     </div>

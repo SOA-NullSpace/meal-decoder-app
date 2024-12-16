@@ -47,38 +47,72 @@ module MealDecoder
     error do |error|
       puts "ERROR: #{error.inspect}"
       puts error.backtrace
-      flash[:error] = 'An unexpected error occurred'
-      response.status = 500
-      view 'home', locals: {
-        title_suffix: 'Error',
-        dishes: Views::DishesList.new([])
-      }
+      flash[:error] = case error
+                     when Roda::RodaError
+                       'Invalid request'
+                     else
+                       'An unexpected error occurred'
+                     end
+      if request.path.end_with?('.ico')
+        response.status = 404
+        nil
+      else
+        response.status = 500
+        view 'home', locals: {
+          title_suffix: 'Error',
+          dishes: Views::DishesList.new([])
+        }
+      end
     end
 
-    private
-
-    def gateway
-      @gateway ||= Gateway::Api.new(App.config)
+    # Helper methods should be defined at class level, before the route block
+    def self.gateway
+      @gateway ||= Gateway::Api.new(config)
     end
 
-    def parse_json_request(body)
+    def self.parse_json_request(body)
       JSON.parse(body)
     rescue JSON::ParserError => e
       puts "JSON parsing error: #{e.message}"
       {}
     end
 
-    def add_to_history(dish_name)
+    def self.add_to_history(session, dish_name)
       session[:searched_dishes] ||= []
-      # Remove existing entry if present
       session[:searched_dishes].delete(dish_name)
-      # Add to the beginning of the array
       session[:searched_dishes].unshift(dish_name)
-      # Keep only the most recent MAX_HISTORY_SIZE dishes
       session[:searched_dishes] = session[:searched_dishes].take(MAX_HISTORY_SIZE)
     end
 
+    def self.handle_failure(flash, routing, message)
+      flash[:error] = message
+      routing.redirect '/'
+    end
+
+    def self.handle_success(flash, routing, message)
+      flash[:success] = message
+      routing.redirect '/'
+    end
+
+    def self.handle_api_error(response, routing, flash, message)
+      if routing.accepts?('application/json')
+        response.status = 400
+        { error: message }.to_json
+      else
+        flash[:error] = message
+        routing.redirect '/'
+      end
+    end
+
+    def self.handle_404(response, flash, routing)
+      response.status = 404
+      flash[:error] = 'Resource not found'
+      routing.redirect '/'
+    end
+
     route do |routing|
+      @current_route = routing  # Save routing for helper methods
+
       response['Content-Type'] = 'text/html; charset=utf-8'
       routing.public
 
@@ -108,74 +142,59 @@ module MealDecoder
         }
       end
 
-      # POST /dishes - Create new dish
+      # POST /dishes - Create new dish from selection
       routing.on 'dishes' do
         routing.post do
-          request_data = parse_json_request(routing.body.read)
-
-          unless request_data['dish_name']
-            response.status = 400
-            return { error: 'Dish name is required' }.to_json
-          end
-
-          result = gateway.create_dish(request_data['dish_name'])
-          puts "Create dish response: #{result.inspect}"
-
-          if result.success?
-            response.status = result.status == :processing ? 202 : 201
-
-            # Extract channel information for WebSocket progress tracking
-            channel_id = result.payload.dig('data', 'channel_id')
-            progress_info = if channel_id
-                              {
-                                channel: "/progress/#{channel_id}",
-                                endpoint: "#{App.config.API_HOST}/faye"
-                              }
-                            end
-
-            # Add to history if the dish is created successfully
-            add_to_history(request_data['dish_name']) if result.payload['status'] == 'completed'
-
-            {
-              status: result.payload['status'],
-              message: result.payload['message'],
-              data: result.payload['data'],
-              progress: progress_info
-            }.to_json
-          else
-            response.status = 400
-            {
-              error: result.message,
-              details: result.payload&.dig('error', 'details')
-            }.to_json
-          end
-        rescue StandardError => e
-          puts "ERROR creating dish: #{e.inspect}"
-          puts e.backtrace
-          response.status = 500
-          {
-            error: 'Could not process dish request',
-            details: e.message
-          }.to_json
-        end
-
-        # GET /dishes/:id - Get dish by ID
-        routing.on Integer do |id|
-          routing.get do
-            result = gateway.fetch_dish(id)
+          begin
+            request_data = self.class.parse_json_request(routing.body.read)
+            result = self.class.gateway.create_dish(request_data['dish_name'])
 
             if result.success?
-              dish_name = result.payload['name']
-              add_to_history(dish_name) if dish_name
+              response.status = result.payload['status'] == 'processing' ? 202 : 201
 
-              view 'dish', locals: {
-                title_suffix: result.payload['name'],
-                dish: Views::Dish.new(result.payload)
-              }
+              # Add to history if dish was created successfully
+              self.class.add_to_history(session, request_data['dish_name']) if result.status == :completed
+
+              channel_id = result.payload.dig('data', 'channel_id')
+              progress_info = channel_id ? {
+                channel: "/progress/#{channel_id}",
+                endpoint: "#{App.api_host}/faye"
+              } : nil
+
+              {
+                status: result.payload['status'],
+                message: result.payload['message'],
+                data: result.payload['data'],
+                progress: progress_info
+              }.to_json
             else
-              flash[:error] = result.message
-              routing.redirect '/'
+              response.status = 400
+              { 
+                error: true,
+                message: result.message 
+              }.to_json
             end
+          rescue StandardError => e
+            puts "ERROR creating dish: #{e.inspect}"
+            response.status = 500
+            {
+              error: true,
+              message: 'Failed to process dish request'
+            }.to_json
+          end
+        end
+
+        # GET /dishes/:id - Show dish details
+        routing.get Integer do |id|
+          result = self.class.gateway.fetch_dish(id)
+
+          if result.success?
+            view 'dish', locals: {
+              dish: Views::Dish.new(result.payload),
+              title_suffix: result.payload['name']
+            }
+          else
+            self.class.handle_failure(flash, routing, result.message)
           end
         end
       end
@@ -195,16 +214,13 @@ module MealDecoder
 
           case result
           when Success
-            # Add to search history
-            add_to_history(dish_name)
-
+            self.class.add_to_history(session, dish_name)
             view 'dish', locals: {
               title_suffix: result.value!['name'],
               dish: Views::Dish.new(result.value!)
             }
           when Failure
-            flash[:error] = result.failure
-            routing.redirect '/'
+            self.class.handle_failure(flash, routing, result.failure)
           end
         end
       end
@@ -215,12 +231,9 @@ module MealDecoder
           puts 'Received text detection request'
 
           unless routing.params['image_file']
-            flash[:error] = 'Please select an image file'
-            routing.redirect '/'
-            next
+            self.class.handle_failure(flash, routing, 'Please select an image file')
           end
 
-          # Log incoming file details
           image_file = routing.params['image_file']
           puts "Processing image: #{image_file[:filename]} (#{image_file[:type]})"
 
@@ -237,14 +250,12 @@ module MealDecoder
             }
           when Failure
             puts "Text detection failed: #{result.failure}"
-            flash[:error] = result.failure
-            routing.redirect '/'
+            self.class.handle_failure(flash, routing, result.failure)
           end
         rescue StandardError => e
           puts "ERROR in detect_text: #{e.class} - #{e.message}"
           puts e.backtrace
-          flash[:error] = 'Error occurred while processing the image'
-          routing.redirect '/'
+          self.class.handle_failure(flash, routing, 'Error occurred while processing the image')
         end
       end
 
@@ -253,14 +264,8 @@ module MealDecoder
         routing.delete do
           dish_name = CGI.unescape(encoded_dish_name)
           session[:searched_dishes]&.delete(dish_name)
-          flash[:success] = 'Dish removed from history'
-          routing.redirect '/'
+          self.class.handle_success(flash, routing, 'Dish removed from history')
         end
-      end
-
-      def flash_error(message)
-        flash[:error] = message
-        routing.redirect '/'
       end
     end
   end
