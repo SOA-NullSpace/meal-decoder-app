@@ -3,7 +3,6 @@
 
 module MealDecoder
   module Views
-    # View for dish presentation
     class Dish
       attr_reader :name, :ingredients, :total_calories, :calorie_level
 
@@ -23,10 +22,11 @@ module MealDecoder
       end
 
       def calorie_class
-        case @total_calories
-        when 0..500 then 'success'
-        when 501..800 then 'warning'
-        else 'danger'
+        case @calorie_level&.downcase
+        when 'high' then 'danger'    # Will render as red
+        when 'moderate' then 'warning'  # Will render as yellow
+        when 'low' then 'success'    # Will render as green
+        else 'secondary'             # Default gray
         end
       end
 
@@ -48,9 +48,9 @@ module MealDecoder
 
       def calculate_calorie_level
         case @total_calories
-        when 0..400 then 'Low Calorie'
-        when 401..700 then 'Medium Calorie'
-        else 'High Calorie'
+        when 0..400 then 'Low'
+        when 401..700 then 'Moderate'
+        else 'High'
         end
       end
     end

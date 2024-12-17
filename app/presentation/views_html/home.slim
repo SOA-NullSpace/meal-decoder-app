@@ -7,7 +7,23 @@ div.container.mt-5
     .d-flex.justify-content-end
       p.text-muted = "#{dishes.count} dishes decoded"
 
-  section.search-section.mb-5
+  section.allergen-section.mb-5
+  .card
+    .card-body
+      h2.h4.mb-4 Manage Your Allergens
+      form#allergen-form
+        .form-group
+          label.font-weight-bold for="allergen-input" Add allergen to watch for:
+          .input-group
+            input#allergen-input.form-control type="text" placeholder="e.g., peanuts" required="true"
+            .input-group-append
+              button.btn.btn-primary type="submit" Add
+      
+      .mt-4
+        h3.h5 Your Allergens:
+        #allergen-list.mt-2
+
+  section.search-section.mt-5.mb-5.
     .card
       .card-body
         h2.h4.mb-4 Decode Dish Name
@@ -96,6 +112,60 @@ javascript:
     const progressBar = progressContainer.querySelector('.progress-bar');
     const progressDetails = progressContainer.querySelector('.progress-details');
 
+    let allergens = JSON.parse(localStorage.getItem('allergens') || '[]');
+  
+    const allergenForm = document.querySelector('#allergen-form');
+    const allergenInput = document.querySelector('#allergen-input');
+    const allergenList = document.querySelector('#allergen-list');
+    
+    // Display existing allergens
+    function displayAllergens() {
+      allergenList.innerHTML = allergens.map(allergen => `
+        <span class="badge bg-danger me-2 mb-2">
+          ${allergen}
+          <button type="button" class="btn-close ms-2" data-allergen="${allergen}"></button>
+        </span>
+      `).join('');
+    }
+
+    // Update the displayAllergens function
+    function displayAllergens() {
+      allergenList.innerHTML = allergens.map(allergen => `
+        <span class="badge badge-danger mr-2 mb-2">
+          ${allergen}
+          <button type="button" class="close ml-2" data-allergen="${allergen}" aria-label="Remove">
+            <span aria-hidden="true">&times;</span>
+          </button>
+        </span>
+      `).join('');
+    }
+
+    // Add new allergen
+    allergenForm.addEventListener('submit', function(e) {
+      e.preventDefault();
+      const newAllergen = allergenInput.value.trim().toLowerCase();
+      if (newAllergen && !allergens.includes(newAllergen)) {
+        allergens.push(newAllergen);
+        localStorage.setItem('allergens', JSON.stringify(allergens));
+        allergenInput.value = '';
+        displayAllergens();
+      }
+    });
+    
+    // Remove allergen
+    // Update the allergen removal event handler
+    allergenList.addEventListener('click', function(e) {
+      if (e.target.closest('.close')) {
+        const allergen = e.target.closest('.close').dataset.allergen;
+        allergens = allergens.filter(a => a !== allergen);
+        localStorage.setItem('allergens', JSON.stringify(allergens));
+        displayAllergens();
+      }
+    });
+    
+    
+    displayAllergens();
+
     let fayeClient = null;
     let fayeSubscription = null;
 
@@ -140,7 +210,7 @@ javascript:
             throw new Error(result.error);
           }
 
-          // Initialize progress tracking if we got channel info
+          // Handle progress updates if we got channel info
           if (result.progress?.channel && result.progress?.endpoint) {
             progressDetails.innerHTML = '<small class="text-muted">Connected. Waiting for updates...</small>';
             
@@ -180,9 +250,19 @@ javascript:
                 // Handle completion
                 if (percent === 100) {
                   progressDetails.innerHTML = '<small class="text-success">Processing complete!</small>';
-                  setTimeout(() => {
-                    window.location.href = `/display_dish?name=${encodeURIComponent(dishName)}`;
-                  }, 500);
+                  
+                  // First update session data
+                  fetch('/display_dish?name=' + encodeURIComponent(dishName), {
+                    method: 'GET',
+                    headers: {
+                      'Accept': 'text/html',
+                      'X-Requested-With': 'XMLHttpRequest'
+                    }
+                  }).then(() => {
+                    // Then reload the page to show updated history
+                    window.location.reload();
+                    window.location.href = '/display_dish?name=' + encodeURIComponent(dishName);
+                  });
                 }
               } catch (err) {
                 console.error('Progress update error:', err);
@@ -190,17 +270,9 @@ javascript:
                 cleanupFaye();
               }
             });
-
-            // Handle connection status
-            fayeClient.on('transport:up', function() {
-              progressDetails.innerHTML = '<small class="text-success">Connected to processing server</small>';
-            });
-
-            fayeClient.on('transport:down', function() {
-              progressDetails.innerHTML = '<small class="text-warning">Reconnecting to server...</small>';
-            });
           } else {
-            throw new Error('Server did not provide progress tracking information');
+            // If no progress tracking, just redirect
+            window.location.href = `/display_dish?name=${encodeURIComponent(dishName)}`;
           }
         } catch (error) {
           console.error('Error:', error);
@@ -228,4 +300,3 @@ javascript:
       }
     }
   });
-  
