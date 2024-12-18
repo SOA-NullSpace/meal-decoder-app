@@ -19,7 +19,7 @@ module MealDecoder
     plugin :assets,
            path: 'app/presentation/assets',
            css: 'style.css',
-           js: ['layout.js', 'components/ProgressTracker.js']
+           js: 'layout.js'
     plugin :flash
     plugin :all_verbs
     plugin :request_headers
