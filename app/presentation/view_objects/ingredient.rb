@@ -1,21 +1,9 @@
-# frozen_string_literal: true
-
+# app/presentation/view_objects/ingredient.rb
+# app/presentation/view_objects/ingredient.rb
 module MealDecoder
   module Views
     # View object for an ingredient
     class Ingredient
-      CALORIE_MAP = {
-        'beef|pork|lamb'                => 250,
-        'chicken|turkey|duck'           => 165,
-        'fish|seafood|shrimp'           => 150,
-        'rice|noodle|pasta'             => 130,
-        'egg'                           => 70,
-        'carrot|onion|vegetable|garlic' => 30,
-        'sauce|oil'                     => 45
-      }.freeze
-
-      DEFAULT_CALORIES = 100
-
       attr_reader :name, :amount, :unit
 
       def initialize(entity)
@@ -26,7 +14,6 @@ module MealDecoder
 
       def formatted_amount
         return @name unless @amount || @unit
-
         [@amount, @unit, @name].compact.join(' ')
       end
 
@@ -41,10 +28,16 @@ module MealDecoder
       private
 
       def calculate_calories
-        CALORIE_MAP.each do |pattern, calories|
-          return calories if @name.to_s.downcase.match?(pattern)
+        case @name.to_s.downcase
+        when /beef|pork|lamb/ then 250
+        when /chicken|turkey|duck/ then 165
+        when /fish|seafood|shrimp/ then 150
+        when /rice|noodle|pasta/ then 130
+        when /egg/ then 70
+        when /carrot|onion|vegetable|garlic/ then 30
+        when /sauce|oil/ then 45
+        else 100
         end
-        DEFAULT_CALORIES
       end
     end
   end

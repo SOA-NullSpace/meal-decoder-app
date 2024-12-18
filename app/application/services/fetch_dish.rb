@@ -270,7 +270,6 @@ module MealDecoder
       end
     end
 
-    # Service to create new dish from API
     class CreateDish
       include Dry::Transaction
 
@@ -327,14 +326,17 @@ module MealDecoder
       def validate(image_file)
         return Failure('No image file provided') unless image_file && image_file[:tempfile]
 
-        validation = Forms::ImageFileUpload.new.call(
-          image_file: {
-            tempfile: image_file[:tempfile],
-            type: image_file[:type],
-            filename: image_file[:filename]
-          }
-        )
-        validation.success? ? Success(image_file) : Failure(validation.errors.messages.join('; '))
+        validation = Forms::ImageFileUpload.new.call(image_file: {
+                                                       tempfile: image_file[:tempfile],
+                                                       type: image_file[:type],
+                                                       filename: image_file[:filename]
+                                                     })
+
+        if validation.success?
+          Success(image_file)
+        else
+          Failure(validation.errors.messages.join('; '))
+        end
       end
 
       def detect_text(image_file)
@@ -349,7 +351,6 @@ module MealDecoder
       end
     end
 
-    # Service to remove a dish and update session
     class RemoveDish < Dry::Validation::Contract
       include Dry::Monads[:result]
       params do
