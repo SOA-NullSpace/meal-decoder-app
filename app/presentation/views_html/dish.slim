@@ -6,7 +6,7 @@ div.container.mt-5
         = dish.calorie_level
         span.ml-2 = "#{dish.total_calories} cal"
 
-  - if !dish.ingredients?
+  - if !dish.has_ingredients?
     .alert.alert-warning
       i.fa-solid.fa-exclamation-triangle.mr-2
       | No ingredients found for this dish.
@@ -21,7 +21,7 @@ div.container.mt-5
           ul.list-group.list-group-flush
             - dish.ingredients.each do |ingredient|
               li.list-group-item.d-flex.justify-content-between.align-items-center
-                = ingredient.name
+                = ingredient
                 span.badge.badge-light = ingredient.display_calories
 
         .nutrition-summary.mt-4
@@ -39,7 +39,7 @@ div.container.mt-5
     a.btn.btn-outline-primary.mr-2 href="/" 
       i.fa-solid.fa-arrow-left.mr-2
       | Back to Search
-    - if dish.ingredients?
+    - if dish.has_ingredients?
       button.btn.btn-success onclick="window.print()"
         i.fa-solid.fa-print.mr-2
         | Print Recipe

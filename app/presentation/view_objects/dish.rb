@@ -2,79 +2,51 @@
 
 module MealDecoder
   module Views
-    # Presents raw dish data in a structured format
-    class DishPresenter
-      def initialize(data)
-        @raw_data = data
-      end
-
-      def name
-        @raw_data['name']
-      end
-
-      def id
-        @raw_data['id']
-      end
-
-      def total_calories
-        @raw_data['total_calories'].to_i
-      end
-
-      def calorie_level
-        @raw_data['calorie_level']
-      end
-
-      def raw_ingredients
-        @raw_data['ingredients'] || []
-      end
-    end
-
-    # View object representing a dish with its presentation logic
+    # View for dish presentation
     class Dish
+      attr_reader :name, :ingredients, :total_calories, :calorie_level
+
       def initialize(data)
-        @presenter = DishPresenter.new(data)
-      end
-
-      def id
-        @presenter.id
-      end
-
-      def name
-        @presenter.name
-      end
-
-      def ingredients
-        @ingredients ||= @presenter.raw_ingredients.map { |ing| Ingredient.new(name: ing) }
+        @name = data['name']
+        @ingredients = create_ingredients(data['ingredients'])
+        @total_calories = data['total_calories'].to_i
+        @calorie_level = data['calorie_level'] || calculate_calorie_level
       end
 
       def ingredients?
-        ingredients.any?
+        @entity.ingredients&.any?
       end
 
       def ingredients_count
-        ingredients.size
-      end
-
-      def total_calories
-        @presenter.total_calories
+        @ingredients&.size || 0
       end
 
       def calorie_class
-        case total_calories
+        case @total_calories
         when 0..500 then 'success'
         when 501..800 then 'warning'
         else 'danger'
         end
       end
 
-      def calorie_level
-        @presenter.calorie_level || calculate_calorie_level
-      end
-
       private
 
+      def create_ingredients(ingredients_data)
+        return [] if ingredients_data.nil?
+
+        ingredients_data.map do |ingredient_name|
+          Views::Ingredient.new(
+            OpenStruct.new(
+              name: ingredient_name,
+              amount: nil,
+              unit: nil
+            )
+          )
+        end
+      end
+
       def calculate_calorie_level
-        case total_calories
+        case @total_calories
         when 0..400 then 'Low Calorie'
         when 401..700 then 'Medium Calorie'
         else 'High Calorie'

@@ -16,15 +16,24 @@ module MealDecoder
         Response.new(result)
       end
 
-      def post_json(url, data)
-        result = HTTP.headers(headers)
-          .post("#{@api_root}/#{url}", json: data)
-        Response.new(result)
-      end
-
-      def post_form(url, data)
-        result = HTTP.headers(form_headers)
-          .post("#{@api_root}/#{url}", form: data)
+      # def post(url, data, content_type = :json)
+      #   if content_type == :json
+      #     result = HTTP.headers(headers)
+      #                .post("#{@api_root}/#{url}", json: data)
+      #   else
+      #     result = HTTP.headers(form_headers)
+      #                .post("#{@api_root}/#{url}", form: data)
+      #   end
+      #   Response.new(result)
+      # end
+      def post(url, data, content_type = :json)
+        result = if content_type == :form
+                   HTTP.headers(form_headers)
+                     .post("#{@api_root}/#{url}", form: data)
+                 else
+                   HTTP.headers(headers)
+                     .post("#{@api_root}/#{url}", json: data)
+                 end
         Response.new(result)
       end
 
@@ -44,15 +53,13 @@ module MealDecoder
       end
     end
 
-    # Response wrapper for HTTP responses
+    # Response wrapper
     class Response
       attr_reader :status, :message, :payload
 
       def initialize(http_response)
-        @status = nil
-        @message = nil
-        @payload = nil
-        process_response(http_response)
+        @response = http_response
+        parse_response
       end
 
       def success?
@@ -61,123 +68,48 @@ module MealDecoder
 
       private
 
-      def process_response(response)
-        case response
+      def parse_response
+        case @response
         when HTTP::Response
-          @status = response.code
-          process_by_status(response)
+          process_http_response
         end
-      rescue JSON::ParserError => parse_error
-        handle_parse_error(parse_error.message)
+      rescue JSON::ParserError => e
+        handle_parse_error(e)
       end
 
-      def process_by_status(response)
-        if response.status.success?
-          process_successful_response(response)
+      def process_http_response
+        puts "Raw response body: #{@response.body}"
+        if @response.status.success?
+          process_successful_response
         else
-          process_error_response(response)
+          process_error_response
         end
       end
 
-      def process_successful_response(response)
-        body = JSON.parse(response.body.to_s)
+      def process_successful_response
+        body = JSON.parse(@response.body.to_s)
+        @status = @response.code
         @message = body['message']
         @payload = body
+        puts "Parsed response payload: #{@payload}"
       end
 
-      def process_error_response(response)
-        @message = "API Error: #{response.status}"
+      def process_error_response
+        @status = @response.code
+        @message = "API Error: #{@response.status}"
         @payload = nil
+        puts "API Error response: #{@message}"
       end
 
-      def handle_parse_error(error_message)
+      def handle_parse_error(error)
+        puts "JSON parsing error: #{error.message}"
         @status = 500
-        @message = "Invalid JSON response from API: #{error_message}"
+        @message = 'Invalid JSON response from API'
         @payload = nil
       end
     end
 
-    # Handles API response processing and error transformation
-    class ResponseHandler
-      def self.handle_response(response)
-        return response if response.success?
-
-        OpenStruct.new(
-          success?: false,
-          message: response.message || 'API request failed',
-          payload: nil
-        )
-      end
-    end
-
-    # Handles image processing errors
-    class ErrorHandler
-      def self.handle_detection_error(error_message)
-        OpenStruct.new(
-          success?: false,
-          message: "Failed to process image: #{error_message}",
-          status: 500
-        )
-      end
-    end
-
-    # Handles creating standardized error responses for API failures
-    class ErrorResponse
-      def self.create(error_message)
-        OpenStruct.new(
-          success?: false,
-          message: "Failed to process image: #{error_message}",
-          status: 500
-        )
-      end
-    end
-
-    # Creates form data for image file uploads
-    class FormDataCreator
-      def initialize(file, path)
-        @file = file
-        @path = path
-        @content_type = 'image/jpeg'
-      end
-
-      def create
-        HTTP::FormData::File.new(
-          @file,
-          filename: filename,
-          content_type: @content_type
-        )
-      end
-
-      private
-
-      def filename
-        File.basename(@path)
-      end
-    end
-
-    # Handles image file upload operations including form data creation
-    class ImageUploader
-      def initialize(request, creator_class: FormDataCreator)
-        @request = request
-        @creator_class = creator_class
-      end
-
-      def upload(image_path)
-        image_file = File.open(image_path, 'rb')
-        form_data = create_form_data(image_file, image_path)
-        @request.post_form('detect_text', { image_file: form_data })
-      ensure
-        image_file&.close
-      end
-
-      private
-
-      def create_form_data(file, path)
-        @creator_class.new(file, path).create
-      end
-    end
-
-    # Main API Gateway handling all external service requests
+    # Main API Gateway class
     class Api
       def initialize(config)
         @config = config
@@ -186,20 +118,60 @@ module MealDecoder
 
       def create_dish(name)
         puts "Creating dish with name: #{name}"
-        @request.post_json('dishes', { dish_name: name })
+        response = @request.post('dishes', { dish_name: name })
+        puts "Create dish response: #{response.inspect}"
+        response
       end
 
       def fetch_dish(name)
         puts "Fetching dish with name: #{name}"
-        @request.get("dishes?q=#{name}")
+        response = @request.get("dishes?q=#{name}")
+        puts "Fetch dish response: #{response.inspect}"
+        response
       end
+
+      # def detect_text(image_path)
+      #   form_data = HTTP::FormData::File.new(image_path)
+      #   @request.post('detect_text', { image_file: form_data }, :form)
+      # end
 
       def detect_text(image_path)
         puts "Detecting text from image: #{image_path}"
-        uploader = ImageUploader.new(@request)
-        uploader.upload(image_path)
-      rescue StandardError => error
-        ErrorResponse.create(error.message)
+        process_image_detection(image_path)
+      rescue StandardError => e
+        log_error_and_return_failure(e)
+      end
+
+      private
+
+      def process_image_detection(image_path)
+        image_file = File.open(image_path, 'rb')
+        form_data = build_form_data(image_file, image_path)
+        send_detection_request(form_data)
+      ensure
+        image_file&.close
+      end
+
+      def build_form_data(file, path)
+        HTTP::FormData::File.new(
+          file,
+          content_type: 'image/jpeg',
+          filename: File.basename(path)
+        )
+      end
+
+      def send_detection_request(form_data)
+        @request.post('detect_text', { image_file: form_data }, :form)
+      end
+
+      def log_error_and_return_failure(error)
+        puts "Error in detect_text: #{error.message}"
+        puts error.backtrace.join("\n")
+        OpenStruct.new(
+          success?: false,
+          message: "Failed to process image: #{error.message}",
+          status: 500
+        )
       end
     end
   end
