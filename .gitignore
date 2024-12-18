@@ -10,3 +10,6 @@ coverage/*
 !coverage/.resultset.json
 *.db
 .bundle/
+public/js/*
+!public/js/.keep
+node_modules/*

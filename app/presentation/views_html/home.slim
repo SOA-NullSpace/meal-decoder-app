@@ -4,21 +4,57 @@ div.container.mt-5
       h1.mb-0 Meal Decoder
 
   - if dishes.any?
-      .d-flex.justify-content-end
-        p.text-muted = "#{dishes.count} dishes decoded"
+    .d-flex.justify-content-end
+      p.text-muted = "#{dishes.count} dishes decoded"
 
-  section.search-section.mb-5
+  section.allergen-section.mb-5
+  .card
+    .card-body
+      h2.h4.mb-4 Manage Your Allergens
+      form#allergen-form
+        .form-group
+          label.font-weight-bold for="allergen-input" Add allergen to watch for:
+          .input-group
+            input#allergen-input.form-control type="text" placeholder="e.g., peanuts" required="true"
+            .input-group-append
+              button.btn.btn-primary type="submit" Add
+      
+      .mt-4
+        h3.h5 Your Allergens:
+        #allergen-list.mt-2
+
+  section.search-section.mt-5.mb-5.
     .card
       .card-body
         h2.h4.mb-4 Decode Dish Name
-        form action="/fetch_dish" method="post" enctype="multipart/form-data"
-          .form-group
-            label.font-weight-bold for="dish_name" Enter the dish name:
-            input#dish_name.form-control type="text" name="dish_name" placeholder="E.g., Tomato Soup" required="true"
-            small.form-text.text-muted Only letters and spaces are allowed.
-          button.btn.btn-primary.btn-block type="submit"
-            i.fa-solid.fa-search.mr-2
-            | Decode Ingredients
+        #form-container
+          form#dish-form
+            .form-group
+              label.font-weight-bold for="dish_name" Enter the dish name:
+              input#dish_name.form-control type="text" name="dish_name" placeholder="E.g., Spaghetti Carbonara" required="true"
+              small.form-text.text-muted Only letters and spaces are allowed.
+            button.btn.btn-primary.btn-block type="submit"
+              i.fa-solid.fa-search.mr-2
+              | Decode Ingredients
+
+          #progress-container.mt-4.d-none
+            .text-center.mb-4
+              h4.progress-message.text-muted Starting dish processing...
+            .progress
+              .progress-bar.progress-bar-striped.progress-bar-animated.bg-success[
+                role="progressbar"
+                style="width: 0%"
+                aria-valuenow="0"
+                aria-valuemin="0"
+                aria-valuemax="100"
+              ] 0%
+            .mt-3.text-center.progress-details
+              small.text-muted Please wait while we analyze your dish...
+
+          #error-container.alert.alert-danger.mt-4.d-none
+            span.error-message
+            button.close type="button" data-dismiss="alert" aria-label="Close"
+              span aria-hidden="true" &times;
 
   section.image-upload-section.mb-5
     .card
@@ -58,8 +94,209 @@ div.container.mt-5
                     | Remove
 
 javascript:
-  document.getElementById('image_file').addEventListener('change', function(e) {
-    var fileName = e.target.files[0] ? e.target.files[0].name : 'Choose file...';
-    var label = e.target.nextElementSibling;
+  // Image file input handler
+  document.getElementById('image_file')?.addEventListener('change', function(e) {
+    const fileName = e.target.files[0] ? e.target.files[0].name : 'Choose file...';
+    const label = e.target.nextElementSibling;
     label.innerHTML = '<i class="fas fa-upload mr-2"></i>' + fileName;
+  });
+
+  // Progress tracking and form handling
+  document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('dish-form');
+    const formContainer = document.getElementById('form-container');
+    const progressContainer = document.getElementById('progress-container');
+    const errorContainer = document.getElementById('error-container');
+    const errorMessage = errorContainer.querySelector('.error-message');
+    const progressMessage = progressContainer.querySelector('.progress-message');
+    const progressBar = progressContainer.querySelector('.progress-bar');
+    const progressDetails = progressContainer.querySelector('.progress-details');
+
+    let allergens = JSON.parse(localStorage.getItem('allergens') || '[]');
+  
+    const allergenForm = document.querySelector('#allergen-form');
+    const allergenInput = document.querySelector('#allergen-input');
+    const allergenList = document.querySelector('#allergen-list');
+    
+    // Display existing allergens
+    function displayAllergens() {
+      allergenList.innerHTML = allergens.map(allergen => `
+        <span class="badge bg-danger me-2 mb-2">
+          ${allergen}
+          <button type="button" class="btn-close ms-2" data-allergen="${allergen}"></button>
+        </span>
+      `).join('');
+    }
+
+    // Update the displayAllergens function
+    function displayAllergens() {
+      allergenList.innerHTML = allergens.map(allergen => `
+        <span class="badge badge-danger mr-2 mb-2">
+          ${allergen}
+          <button type="button" class="close ml-2" data-allergen="${allergen}" aria-label="Remove">
+            <span aria-hidden="true">&times;</span>
+          </button>
+        </span>
+      `).join('');
+    }
+
+    // Add new allergen
+    allergenForm.addEventListener('submit', function(e) {
+      e.preventDefault();
+      const newAllergen = allergenInput.value.trim().toLowerCase();
+      if (newAllergen && !allergens.includes(newAllergen)) {
+        allergens.push(newAllergen);
+        localStorage.setItem('allergens', JSON.stringify(allergens));
+        allergenInput.value = '';
+        displayAllergens();
+      }
+    });
+    
+    // Remove allergen
+    // Update the allergen removal event handler
+    allergenList.addEventListener('click', function(e) {
+      if (e.target.closest('.close')) {
+        const allergen = e.target.closest('.close').dataset.allergen;
+        allergens = allergens.filter(a => a !== allergen);
+        localStorage.setItem('allergens', JSON.stringify(allergens));
+        displayAllergens();
+      }
+    });
+    
+    
+    displayAllergens();
+
+    let fayeClient = null;
+    let fayeSubscription = null;
+
+    if (form) {
+      form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        try {
+          const dishName = form.dish_name.value.trim();
+          
+          if (!dishName) {
+            throw new Error('Please enter a dish name');
+          }
+          
+          // Show loading state
+          form.classList.add('d-none');
+          progressContainer.classList.remove('d-none');
+          errorContainer.classList.add('d-none');
+          
+          // Reset progress UI
+          progressMessage.textContent = 'Starting dish processing...';
+          progressBar.style.width = '0%';
+          progressBar.textContent = '0%';
+          progressDetails.innerHTML = '<small class="text-muted">Connecting to server...</small>';
+          
+          // Send request to server
+          const response = await fetch('/dishes', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ dish_name: dishName })
+          });
+
+          if (!response.ok) {
+            throw new Error(`Server error: ${response.status}`);
+          }
+
+          const result = await response.json();
+          
+          if (result.error) {
+            throw new Error(result.error);
+          }
+
+          // Handle progress updates if we got channel info
+          if (result.progress?.channel && result.progress?.endpoint) {
+            progressDetails.innerHTML = '<small class="text-muted">Connected. Waiting for updates...</small>';
+            
+            // Clean up any existing Faye client
+            if (fayeSubscription) {
+              fayeSubscription.cancel();
+            }
+            if (fayeClient) {
+              fayeClient.disconnect();
+            }
+
+            // Create new Faye client
+            fayeClient = new Faye.Client(result.progress.endpoint, {
+              timeout: 120,
+              retry: 5
+            });
+
+            // Subscribe to progress channel
+            fayeSubscription = fayeClient.subscribe(result.progress.channel, function(message) {
+              try {
+                const progressData = typeof message === 'string' ? JSON.parse(message) : message;
+                
+                if (progressData.error) {
+                  throw new Error(progressData.error);
+                }
+
+                // Update progress UI
+                const percent = parseInt(progressData.percentage || 0, 10);
+                progressBar.style.width = `${percent}%`;
+                progressBar.textContent = `${percent}%`;
+                progressMessage.textContent = progressData.message || 'Processing...';
+                
+                if (progressData.details) {
+                  progressDetails.innerHTML = `<small class="text-muted">${progressData.details}</small>`;
+                }
+
+                // Handle completion
+                if (percent === 100) {
+                  progressDetails.innerHTML = '<small class="text-success">Processing complete!</small>';
+                  
+                  // First update session data
+                  fetch('/display_dish?name=' + encodeURIComponent(dishName), {
+                    method: 'GET',
+                    headers: {
+                      'Accept': 'text/html',
+                      'X-Requested-With': 'XMLHttpRequest'
+                    }
+                  }).then(() => {
+                    // Then reload the page to show updated history
+                    window.location.reload();
+                    window.location.href = '/display_dish?name=' + encodeURIComponent(dishName);
+                  });
+                }
+              } catch (err) {
+                console.error('Progress update error:', err);
+                showError('Failed to process progress update');
+                cleanupFaye();
+              }
+            });
+          } else {
+            // If no progress tracking, just redirect
+            window.location.href = `/display_dish?name=${encodeURIComponent(dishName)}`;
+          }
+        } catch (error) {
+          console.error('Error:', error);
+          showError(error.message);
+          cleanupFaye();
+        }
+      });
+    }
+
+    function showError(message) {
+      errorMessage.textContent = message;
+      errorContainer.classList.remove('d-none');
+      form.classList.remove('d-none');
+      progressContainer.classList.add('d-none');
+    }
+
+    function cleanupFaye() {
+      if (fayeSubscription) {
+        fayeSubscription.cancel();
+        fayeSubscription = null;
+      }
+      if (fayeClient) {
+        fayeClient.disconnect();
+        fayeClient = null;
+      }
+    }
   });

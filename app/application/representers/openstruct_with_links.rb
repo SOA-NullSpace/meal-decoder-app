@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require 'ostruct'
-
 module MealDecoder
   module Representer
     # Extends OpenStruct to support hypermedia links in representers

@@ -6,7 +6,7 @@ div.container.mt-5
         = dish.calorie_level
         span.ml-2 = "#{dish.total_calories} cal"
 
-  - if !dish.ingredients?
+  - if !dish.has_ingredients?
     .alert.alert-warning
       i.fa-solid.fa-exclamation-triangle.mr-2
       | No ingredients found for this dish.
@@ -20,9 +20,14 @@ div.container.mt-5
         .ingredients-list
           ul.list-group.list-group-flush
             - dish.ingredients.each do |ingredient|
-              li.list-group-item.d-flex.justify-content-between.align-items-center
-                = ingredient.name
-                span.badge.badge-light = ingredient.display_calories
+              li.list-group-item.ingredient-item.d-flex.justify-content-between.align-items-center
+                span.ingredient-name = ingredient
+                .badges
+                  span.badge.badge-light.calorie-badge = ingredient.display_calories
+
+        .alert.alert-danger.mt-4
+          strong Disclaimer: 
+          | The calorie values shown are estimates per 100g of each ingredient. Actual calories in the dish may vary significantly based on the recipe, portion sizes, and cooking methods used by the restaurant.
 
         .nutrition-summary.mt-4
           h3.h5.mb-3 
@@ -39,7 +44,35 @@ div.container.mt-5
     a.btn.btn-outline-primary.mr-2 href="/" 
       i.fa-solid.fa-arrow-left.mr-2
       | Back to Search
-    - if dish.ingredients?
+    - if dish.has_ingredients?
       button.btn.btn-success onclick="window.print()"
         i.fa-solid.fa-print.mr-2
         | Print Recipe
+
+javascript:
+  document.addEventListener('DOMContentLoaded', function() {
+    const allergens = JSON.parse(localStorage.getItem('allergens') || '[]');
+    
+    // Check if ingredient contains any allergen
+    function containsAllergen(ingredient) {
+      return allergens.some(allergen => 
+        ingredient.toLowerCase().includes(allergen.toLowerCase())
+      );
+    }
+    
+    // Highlight ingredients containing allergens
+    document.querySelectorAll('.ingredient-item').forEach(item => {
+      const nameElement = item.querySelector('.ingredient-name');
+      const badgesElement = item.querySelector('.badges');
+      const ingredientText = nameElement.textContent;
+      
+      if (containsAllergen(ingredientText)) {
+        nameElement.classList.add('text-danger', 'fw-bold');
+        const allergenBadge = document.createElement('span');
+        allergenBadge.className = 'badge badge-danger ml-2';
+        allergenBadge.textContent = 'Allergen!';
+        badgesElement.insertBefore(allergenBadge, badgesElement.firstChild);
+      }
+    });
+  });
+  

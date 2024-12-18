@@ -1,0 +1,17 @@
+{
+  "name": "app-meal-decoder",
+  "version": "1.0.0",
+  "scripts": {
+    "build": "babel app/presentation/assets/js -d public/js"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@babel/cli": "^7.23.0",
+    "@babel/core": "^7.23.0",
+    "@babel/preset-env": "^7.23.0",
+    "@babel/preset-react": "^7.23.0"
+  }
+}

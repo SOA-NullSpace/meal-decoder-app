@@ -11,10 +11,12 @@ module MealDecoder
     include Dry::Monads[:result]
 
     plugin :caching
+    plugin :json
+    plugin :json_parser
     plugin :environments
     plugin :render, engine: 'slim', views: 'app/presentation/views_html'
-    plugin :public, root: 'app/presentation/assets'
-    plugin :static, ['/assets']
+    plugin :public, root: 'app/presentation/public'
+    plugin :assets, path: 'app/presentation/assets', css: 'style.css'
     plugin :flash
     plugin :all_verbs
     plugin :request_headers
@@ -27,59 +29,113 @@ module MealDecoder
 
     use Rack::MethodOverride
 
+    MAX_HISTORY_SIZE = 10 # Maximum number of dishes to keep in history
+
+    configure do
+      use Rack::MethodOverride
+      use Rack::Session::Cookie,
+          key: 'rack.session',
+          secret: config.SESSION_SECRET,
+          same_site: :strict
+    end
+
+    def self.api_host
+      @api_host ||= ENV.fetch('API_HOST', 'http://localhost:9292')
+    end
+
     # Handle all errors
     error do |error|
       puts "ERROR: #{error.inspect}"
       puts error.backtrace
-      flash[:error] = 'An unexpected error occurred'
-      response.status = 500
-      view 'home', locals: {
-        title_suffix: 'Error',
-        dishes: Views::DishesList.new([])
-      }
+      flash[:error] = case error
+                     when Roda::RodaError
+                       'Invalid request'
+                     else
+                       'An unexpected error occurred'
+                     end
+      if request.path.end_with?('.ico')
+        response.status = 404
+        nil
+      else
+        response.status = 500
+        view 'home', locals: {
+          title_suffix: 'Error',
+          dishes: Views::DishesList.new([])
+        }
+      end
     end
 
-    # Result handling helper
-    module ResultHandler
-      include Dry::Monads[:result]
+    # Helper methods should be defined at class level, before the route block
+    def self.gateway
+      @gateway ||= Gateway::Api.new(config)
+    end
 
-      def self.handle_service_result(result, routing)
-        case result
-        in Success(value)
-          yield(value)
-        in Failure(message)
-          handle_failure(message, routing)
-        end
-      end
+    def self.parse_json_request(body)
+      JSON.parse(body)
+    rescue JSON::ParserError => e
+      puts "JSON parsing error: #{e.message}"
+      {}
+    end
 
-      def self.handle_failure(message, routing)
-        routing.flash[:error] = message
+    def self.add_to_history(session, dish_name)
+      session[:searched_dishes] ||= []
+      session[:searched_dishes].delete(dish_name)
+      session[:searched_dishes].unshift(dish_name)
+      session[:searched_dishes] = session[:searched_dishes].take(MAX_HISTORY_SIZE)
+    end
+
+    def self.handle_failure(flash, routing, message)
+      flash[:error] = message
+      routing.redirect '/'
+    end
+
+    def self.handle_success(flash, routing, message)
+      flash[:success] = message
+      routing.redirect '/'
+    end
+
+    def self.handle_api_error(response, routing, flash, message)
+      if routing.accepts?('application/json')
+        response.status = 400
+        { error: message }.to_json
+      else
+        flash[:error] = message
         routing.redirect '/'
       end
     end
 
-    route do |routing|
-      # Clear any existing flash before processing new request
-      previous_flash = flash.dup
-      flash.clear
+    def self.handle_404(response, flash, routing)
+      response.status = 404
+      flash[:error] = 'Resource not found'
+      routing.redirect '/'
+    end
 
+    route do |routing|
+      @current_route = routing  # Save routing for helper methods
+
+      routing.assets # load CSS
       response['Content-Type'] = 'text/html; charset=utf-8'
-      routing.public
+      routing.public # load favicon
 
       # GET / - Home page with search history
       routing.root do
-        # Disable caching for dynamic content
-        response.headers['Cache-Control'] = 'no-store'
+        response.cache_control public: true, max_age: 60
         session[:searched_dishes] ||= []
         puts "Current session dishes: #{session[:searched_dishes]}"
 
-        # Only keep flash for the first render after redirect
-        flash.merge!(previous_flash) if routing.params['flash'] == 'keep'
-
         dishes = session[:searched_dishes].map do |dish_name|
+          puts "Fetching dish: #{dish_name}"
           result = Services::FetchDish.new.call(dish_name)
-          result.value_or(nil)
+          if result.success?
+            puts "Successfully fetched: #{result.value!}"
+            result.value!
+          else
+            puts "Failed to fetch: #{result.failure}"
+            nil
+          end
         end.compact
+
+        puts "Final dishes data: #{dishes}"
 
         view 'home', locals: {
           title_suffix: 'Home',
@@ -87,25 +143,59 @@ module MealDecoder
         }
       end
 
-      # POST /fetch_dish - Create or retrieve dish information
-      routing.on 'fetch_dish' do
+      # POST /dishes - Create new dish from selection
+      routing.on 'dishes' do
         routing.post do
-          dish_name = routing.params['dish_name']
+          begin
+            request_data = self.class.parse_json_request(routing.body.read)
+            result = self.class.gateway.create_dish(request_data['dish_name'])
 
-          result = Services::CreateDish.new.call(
+            if result.success?
+              response.status = result.payload['status'] == 'processing' ? 202 : 201
+
+              # Add to history if dish was created successfully
+              self.class.add_to_history(session, request_data['dish_name']) if result.status == :completed
+
+              channel_id = result.payload.dig('data', 'channel_id')
+              progress_info = channel_id ? {
+                channel: "/progress/#{channel_id}",
+                endpoint: "#{App.api_host}/faye"
+              } : nil
+
+              {
+                status: result.payload['status'],
+                message: result.payload['message'],
+                data: result.payload['data'],
+                progress: progress_info
+              }.to_json
+            else
+              response.status = 400
+              { 
+                error: true,
+                message: result.message 
+              }.to_json
+            end
+          rescue StandardError => e
+            puts "ERROR creating dish: #{e.inspect}"
+            response.status = 500
             {
-              dish_name: dish_name,
-              session: session
-            }
-          )
+              error: true,
+              message: 'Failed to process dish request'
+            }.to_json
+          end
+        end
 
-          case result
-          in Success(dish_data)
-            flash[:success] = 'Successfully added new dish!'
-            routing.redirect "/display_dish?name=#{CGI.escape(dish_data['name'])}&flash=keep", 303
-          in Failure(message)
-            flash[:error] = message
-            routing.redirect '/?flash=keep', 303
+        # GET /dishes/:id - Show dish details
+        routing.get Integer do |id|
+          result = self.class.gateway.fetch_dish(id)
+
+          if result.success?
+            view 'dish', locals: {
+              dish: Views::Dish.new(result.payload),
+              title_suffix: result.payload['name']
+            }
+          else
+            self.class.handle_failure(flash, routing, result.message)
           end
         end
       end
@@ -113,20 +203,25 @@ module MealDecoder
       # GET /display_dish - Show detailed dish information
       routing.on 'display_dish' do
         routing.get do
-          flash.merge!(previous_flash) if routing.params['flash'] == 'keep'
+          if App.environment == :production
+            response.expires 60, public: true
+            response.headers['Cache-Control'] = 'public, must-revalidate'
+          end
 
           dish_name = CGI.unescape(routing.params['name'].to_s)
+          puts "Displaying dish: #{dish_name}"
+
           result = Services::FetchDish.new.call(dish_name)
 
           case result
-          in Success(dish_data)
+          when Success
+            self.class.add_to_history(session, dish_name)
             view 'dish', locals: {
-              title_suffix: dish_data['name'],
-              dish: Views::Dish.new(dish_data)
+              title_suffix: result.value!['name'],
+              dish: Views::Dish.new(result.value!)
             }
-          in Failure(message)
-            flash[:error] = message
-            routing.redirect '/?flash=keep', 303
+          when Failure
+            self.class.handle_failure(flash, routing, result.failure)
           end
         end
       end
@@ -134,22 +229,34 @@ module MealDecoder
       # POST /detect_text - Process menu image
       routing.on 'detect_text' do
         routing.post do
-          result = Services::DetectMenuText.new.call(routing.params['image_file'])
+          puts 'Received text detection request'
+
+          unless routing.params['image_file']
+            self.class.handle_failure(flash, routing, 'Please select an image file')
+          end
+
+          image_file = routing.params['image_file']
+          puts "Processing image: #{image_file[:filename]} (#{image_file[:type]})"
+
+          result = Services::DetectMenuText.new.call(image_file)
 
           case result
-          in Success(text_data)
+          when Success
+            detected_text = result.value!
+            puts "Successfully detected #{detected_text.length} lines of text"
+
             view 'display_text', locals: {
               title_suffix: 'Text Detection',
-              text: Views::TextDetection.new(text_data)
+              text: Views::TextDetection.new(detected_text)
             }
-          in Failure(message)
-            flash[:error] = message
-            routing.redirect '/?flash=keep', 303
+          when Failure
+            puts "Text detection failed: #{result.failure}"
+            self.class.handle_failure(flash, routing, result.failure)
           end
-        rescue StandardError => error
-          puts "TEXT DETECTION ERROR: #{error.message}"
-          flash[:error] = 'Error occurred while processing the image'
-          routing.redirect '/?flash=keep', 303
+        rescue StandardError => e
+          puts "ERROR in detect_text: #{e.class} - #{e.message}"
+          puts e.backtrace
+          self.class.handle_failure(flash, routing, 'Error occurred while processing the image')
         end
       end
 
@@ -157,36 +264,10 @@ module MealDecoder
       routing.on 'dish', String do |encoded_dish_name|
         routing.delete do
           dish_name = CGI.unescape(encoded_dish_name)
-          result = Services::RemoveDish.new.call(
-            dish_name: dish_name,
-            session: session
-          )
-
-          case result
-          in Success(_)
-            # Clear caches and set no-cache headers
-            response.headers['Cache-Control'] = 'no-cache, no-store'
-            flash[:success] = 'Dish removed from history'
-          in Failure(message)
-            response.status = 400
-            flash[:error] = "Failed to remove dish: #{message}"
-          end
-
-          # Force reload of home page
-          # Add a parameter to indicate we should keep the flash for one render
-          routing.redirect '/?flash=keep', 303
+          session[:searched_dishes]&.delete(dish_name)
+          self.class.handle_success(flash, routing, 'Dish removed from history')
         end
       end
-    end
-
-    private
-
-    def flash
-      request.session['flash'] ||= {}
-    end
-
-    def session
-      request.session
     end
   end
 end
