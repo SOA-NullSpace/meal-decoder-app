@@ -1,4 +1,9 @@
+# app/infrastructure/gateways/api_gateway.rb
+require 'http'
+
 # app/infrastructure/gateways/api.rb
+# app/infrastructure/gateways/api.rb
+
 require 'http'
 
 module MealDecoder
@@ -26,13 +31,13 @@ module MealDecoder
       #   Response.new(result)
       # end
       def post(url, data, content_type = :json)
-        result = if content_type == :form
-                   HTTP.headers(form_headers)
-                       .post("#{@api_root}/#{url}", form: data)
-                 else
-                   HTTP.headers(headers)
-                       .post("#{@api_root}/#{url}", json: data)
-                 end
+        if content_type == :form
+          result = HTTP.headers(form_headers)
+                      .post("#{@api_root}/#{url}", form: data)
+        else
+          result = HTTP.headers(headers)
+                      .post("#{@api_root}/#{url}", json: data)
+        end
         Response.new(result)
       end
 
@@ -70,7 +75,7 @@ module MealDecoder
       def parse_response
         case @response
         when HTTP::Response
-          puts "Raw response body: #{@response.body}"
+          puts "Raw response body: #{@response.body.to_s}"
           if @response.status.success?
             body = JSON.parse(@response.body.to_s)
             @status = @response.code
@@ -125,7 +130,7 @@ module MealDecoder
           image_file = File.open(image_path, 'rb')
           form_data = HTTP::FormData::File.new(
             image_file,
-            content_type: 'image/jpeg', # Adjust based on actual file type
+            content_type: 'image/jpeg',  # Adjust based on actual file type
             filename: File.basename(image_path)
           )
 
@@ -133,11 +138,11 @@ module MealDecoder
           form = {
             image_file: form_data
           }
-
+          
           response = @request.post('detect_text', form, :form)
           puts "Image upload response: #{response.inspect}"
           response
-        rescue StandardError => e
+        rescue => e
           puts "Error in detect_text: #{e.message}"
           puts e.backtrace.join("\n")
           OpenStruct.new(
