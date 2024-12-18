@@ -16,7 +16,10 @@ module MealDecoder
     plugin :environments
     plugin :render, engine: 'slim', views: 'app/presentation/views_html'
     plugin :public, root: 'app/presentation/public'
-    plugin :assets, path: 'app/presentation/assets', css: 'style.css'
+    plugin :assets,
+           path: 'app/presentation/assets',
+           css: 'style.css',
+           js: ['layout.js', 'components/ProgressTracker.js']
     plugin :flash
     plugin :all_verbs
     plugin :request_headers
@@ -48,11 +51,11 @@ module MealDecoder
       puts "ERROR: #{error.inspect}"
       puts error.backtrace
       flash[:error] = case error
-                     when Roda::RodaError
-                       'Invalid request'
-                     else
-                       'An unexpected error occurred'
-                     end
+                      when Roda::RodaError
+                        'Invalid request'
+                      else
+                        'An unexpected error occurred'
+                      end
       if request.path.end_with?('.ico')
         response.status = 404
         nil
@@ -111,7 +114,7 @@ module MealDecoder
     end
 
     route do |routing|
-      @current_route = routing  # Save routing for helper methods
+      @current_route = routing # Save routing for helper methods
 
       routing.assets # load CSS
       response['Content-Type'] = 'text/html; charset=utf-8'
@@ -146,43 +149,43 @@ module MealDecoder
       # POST /dishes - Create new dish from selection
       routing.on 'dishes' do
         routing.post do
-          begin
-            request_data = self.class.parse_json_request(routing.body.read)
-            result = self.class.gateway.create_dish(request_data['dish_name'])
+          request_data = self.class.parse_json_request(routing.body.read)
+          result = self.class.gateway.create_dish(request_data['dish_name'])
 
-            if result.success?
-              response.status = result.payload['status'] == 'processing' ? 202 : 201
+          if result.success?
+            response.status = result.payload['status'] == 'processing' ? 202 : 201
 
-              # Add to history if dish was created successfully
-              self.class.add_to_history(session, request_data['dish_name']) if result.status == :completed
+            # Add to history if dish was created successfully
+            self.class.add_to_history(session, request_data['dish_name']) if result.status == :completed
 
-              channel_id = result.payload.dig('data', 'channel_id')
-              progress_info = channel_id ? {
-                channel: "/progress/#{channel_id}",
-                endpoint: "#{App.api_host}/faye"
-              } : nil
+            channel_id = result.payload.dig('data', 'channel_id')
+            progress_info = if channel_id
+                              {
+                                channel: "/progress/#{channel_id}",
+                                endpoint: "#{App.api_host}/faye"
+                              }
+                            end
 
-              {
-                status: result.payload['status'],
-                message: result.payload['message'],
-                data: result.payload['data'],
-                progress: progress_info
-              }.to_json
-            else
-              response.status = 400
-              { 
-                error: true,
-                message: result.message 
-              }.to_json
-            end
-          rescue StandardError => e
-            puts "ERROR creating dish: #{e.inspect}"
-            response.status = 500
+            {
+              status: result.payload['status'],
+              message: result.payload['message'],
+              data: result.payload['data'],
+              progress: progress_info
+            }.to_json
+          else
+            response.status = 400
             {
               error: true,
-              message: 'Failed to process dish request'
+              message: result.message
             }.to_json
           end
+        rescue StandardError => e
+          puts "ERROR creating dish: #{e.inspect}"
+          response.status = 500
+          {
+            error: true,
+            message: 'Failed to process dish request'
+          }.to_json
         end
 
         # GET /dishes/:id - Show dish details
@@ -231,9 +234,7 @@ module MealDecoder
         routing.post do
           puts 'Received text detection request'
 
-          unless routing.params['image_file']
-            self.class.handle_failure(flash, routing, 'Please select an image file')
-          end
+          self.class.handle_failure(flash, routing, 'Please select an image file') unless routing.params['image_file']
 
           image_file = routing.params['image_file']
           puts "Processing image: #{image_file[:filename]} (#{image_file[:type]})"
